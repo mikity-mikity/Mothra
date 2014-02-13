@@ -14,10 +14,11 @@ namespace Minilla3D.Elements
         };
         type typeOfStress;
         protected const int __DIM=3;
-        public int nIntPoint,nNode,elemDim,nDV;                
+        public int nIntPoint,nBIntPoint,nNode,elemDim,nDV;                
 		public Minilla3D.Elements.integratingPoint[] intP;     //Integrating points
+        public Minilla3D.Elements.integratingPoint[] bIntP;     //Integrating Points on border
         double[] node;							        //Nodal coordinate (global)
-		int[] index;                                    //indeces of the nodes
+		protected int[] index;                                    //indeces of the nodes
         double[] gradient;                              //internal force(equivalent nodal force of stress field)
         double[,] hess;                                 //Hessian  (Geometric Stiffness only)
         double[] force;                                 //external force(equivalent nodal force of gravity)
@@ -29,7 +30,7 @@ namespace Minilla3D.Elements
 			{
 				_index[i]=i;
 			}
-            initialize(_index,_nNode,_elemDim,_nIntPoint);
+            initialize(_index, _nNode, _elemDim, _nIntPoint);
 		}
         public element(int[] _index,int _nNode,int _elemDim,int _nIntPoint)
 		{
@@ -39,11 +40,13 @@ namespace Minilla3D.Elements
         {
             typeOfStress = type.Cauchy;   //default value
             nIntPoint=_nIntPoint;
+            nBIntPoint = 0;
             nNode=_nNode;
             elemDim=_elemDim;
             nDV=nNode*__DIM;
             intP=new integratingPoint[nIntPoint];
-            for(int i=0;i<nIntPoint;i++)
+            this.bIntP = new integratingPoint[0];
+            for (int i = 0; i < nIntPoint; i++)
             {
                 intP[i]=new integratingPoint(nNode,elemDim);
             }
@@ -62,7 +65,11 @@ namespace Minilla3D.Elements
         {
             return intP[i].globalCoord;
         }
-		public double[] getNode(int i)
+        public double[] getBIntPoint(int i)
+        {
+            return bIntP[i].globalCoord;
+        }
+        public double[] getNode(int i)
 		{
 			return new double[3]{node[i*__DIM+0],node[i*__DIM+1],node[i*__DIM+2]};
 	    }
@@ -99,6 +106,10 @@ namespace Minilla3D.Elements
             {
                 intP[i].computeAiryFunction(node);
             }
+            for (int i = 0; i < nBIntPoint; i++)
+            {
+                bIntP[i].computeAiryFunction(node);
+            }
         }
         public void computeEigenVectors()
         {
@@ -119,11 +130,15 @@ namespace Minilla3D.Elements
         }
         public void computeGlobalCoord()
 		{
-			for(int i=0;i<nIntPoint;i++)
-			{
-				intP[i].computeGlobalCoord(node);
-			}
-		}
+            for (int i = 0; i < nIntPoint; i++)
+            {
+                intP[i].computeGlobalCoord(node);
+            }
+            for (int i = 0; i < nBIntPoint; i++)
+            {
+                bIntP[i].computeGlobalCoord(node);
+            }
+        }
 		public void computeMetric(){
 			for(int i=0;i<nIntPoint;i++)
 			{

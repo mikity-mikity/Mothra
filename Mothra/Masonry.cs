@@ -17,11 +17,14 @@ namespace mikity.ghComponents
         Rhino.Geometry.NurbsSurface inputNurbs, airyNurbs, xyNurbs,outputNurbs;
         Minilla3D.Objects.masonry myMasonry = new Minilla3D.Objects.masonry();
         double[,] x;
+        int nContraints=0;
         bool initialized = false;
         int nU, nV;
         List<Guid> fixedPointGuids = null;
         Rhino.Geometry.Mesh alternativeMesh = null;
         List<int> boundaryIndex=null;
+        bool __update = false;
+        System.Windows.Forms.Timer timer=null;
         //List<Minilla3D.Elements.managedElement> elemList = new List<Minilla3D.Elements.managedElement>();
 
         /*        protected override System.Drawing.Bitmap Icon
@@ -58,16 +61,22 @@ namespace mikity.ghComponents
         }
         void timer_Tick(object sender, EventArgs e)
         {
-            this.ExpireSolution(true);
+            if (__update)
+            {
+                __update = false;
+                update();
+                this.ExpirePreview(true);
+            }
         }
         //System.Windows.Forms.Timer timer;
         public override void AddedToDocument(Grasshopper.Kernel.GH_Document document)
         {
             base.AddedToDocument(document);
             Rhino.RhinoDoc.ReplaceRhinoObject += RhinoDoc_ReplaceRhinoObject;
-            //timer = new System.Windows.Forms.Timer();
-            //timer.Tick += timer_Tick;
-            //timer.Enabled = false;
+            timer = new System.Windows.Forms.Timer();
+            timer.Tick += timer_Tick;
+            timer.Enabled = true;
+            timer.Interval = 30;
         }
         public override void RemovedFromDocument(Grasshopper.Kernel.GH_Document document)
         {
@@ -100,12 +109,14 @@ namespace mikity.ghComponents
                             {
                                 Rhino.RhinoDoc.ActiveDoc.Objects.Replace(gi, new Rhino.Geometry.Point3d(P2.X, P2.Y, P1.Z));
                                 airyNurbs.Points.SetControlPoint(j, i, new Rhino.Geometry.ControlPoint(P2.X, P2.Y, P1.Z));
-                                this.ExpirePreview(true);
+                                __update = true;
+//                                this.ExpirePreview(true);
                                 return;
                             }else
                             {
                                 airyNurbs.Points.SetControlPoint(j, i, new Rhino.Geometry.ControlPoint(P1));
-                                this.ExpirePreview(true);
+                                __update = true;
+//                                this.ExpirePreview(true);
                                 return;
                             }
                         }
@@ -127,8 +138,66 @@ namespace mikity.ghComponents
         public void update()
         {
             Nurbs2x(airyNurbs, x);
+            double norm = 0;
+            double minZ = Double.MaxValue;
+            for (int i = 0; i < nU * nV; i++)
+            {
+                if (x[i, 2] < minZ) minZ = x[i, 2];
+            }
+            for (int i = 0; i < nU * nV; i++)
+            {
+                x[i, 2]-=minZ;
+            }
+            for (int i = 0; i < nU * nV; i++)
+            {
+                norm += x[i, 2] * x[i, 2];
+            }
+            for (int i = 0; i < nU * nV; i++)
+            {
+                x[i, 2] /= norm/300000;
+            }
+            
+            x2Nurbs(x, airyNurbs);
             myMasonry.setupNodesFromList(x);
             myMasonry.computeAiryFunction();
+            ShoNS.Array.SparseDoubleArray jacobian = new SparseDoubleArray(nContraints, nU * nV);
+            ShoNS.Array.DoubleArray residual = new DoubleArray(nContraints, 1);
+            for (int t = 0; t < 1; t++)
+            {
+                myMasonry.getJacobian(jacobian);
+                myMasonry.getResidual(residual);
+                System.Windows.Forms.MessageBox.Show(residual.Norm().ToString());
+                var solver2 = new SparseLU(jacobian.T * jacobian as SparseDoubleArray);
+
+                var dx2 = solver2.Solve(jacobian.T * residual);
+                for (int i = 0; i < nU * nV; i++)
+                {
+                    x[i, 2] -= dx2[i, 0] * 0.01;
+                }
+                minZ = Double.MaxValue;
+                for (int i = 0; i < nU * nV; i++)
+                {
+                    if (x[i, 2] < minZ) minZ = x[i, 2];
+                }
+                for (int i = 0; i < nU * nV; i++)
+                {
+                    x[i, 2] -= minZ;
+                }
+                norm = 0;
+                for (int i = 0; i < nU * nV; i++)
+                {
+                     norm+= x[i, 2]*x[i, 2];
+                }
+                /*for (int i = 0; i < nU * nV; i++)
+                {
+                    x[i, 2] /= norm / 300000;
+                }*/
+                x2Nurbs(x, airyNurbs);
+                createAiryPoints(airyNurbs);
+                myMasonry.setupNodesFromList(x);
+                myMasonry.computeAiryFunction();
+            }
+            //Solve
             myMasonry.computeEigenVectors();
             Nurbs2x(xyNurbs, x);
             myMasonry.setupNodesFromList(x);
@@ -195,6 +264,13 @@ namespace mikity.ghComponents
             origX = shiftArray.T * origX;
             var fixX = origX.GetSlice(T1 + 1, T2, 0, 0);
             var B = -DIB * fixX;
+            var force = DoubleArray.Zeros(nParticles * 3, 1);
+            for(int i=0;i<nParticles;i++)
+            {
+                force[i * 3 + 2, 0] = 0;//-0.3;
+            }
+            force = (shiftArray.T*force).GetSlice(0, T1, 0, 0);
+            B = B + force;
             var dx = solver.Solve(B);
 
             var ret = DoubleArray.Zeros(nParticles *3, 1);
@@ -223,8 +299,6 @@ namespace mikity.ghComponents
                 return;
             }
 
-            update();
-
             args.Display.DrawSurface(airyNurbs, System.Drawing.Color.Blue, 1);
             args.Display.DrawSurface(outputNurbs, System.Drawing.Color.Red, 1);
             args.Display.DrawSurface(xyNurbs, System.Drawing.Color.Green, 1);
@@ -232,6 +306,10 @@ namespace mikity.ghComponents
             double[] val = new double[2];
             double[] node=null;
             double S = 1000;
+            Nurbs2x(xyNurbs, x);
+            myMasonry.setupNodesFromList(x);
+            myMasonry.computeGlobalCoord();
+
             foreach (var e in myMasonry.elemList)
             {
                 for(int i=0;i<e.nIntPoint;i++)
@@ -253,11 +331,12 @@ namespace mikity.ghComponents
                     args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] - vec[1][0] * S2, node[1] - vec[1][1] * S2, node[2] - vec[1][2] * S2), color, 1);
                 }
             }
-            /*List<Rhino.Geometry.Point3d> xyP = new List<Point3d>();
-            List<Rhino.Geometry.Point3d> airyP = new List<Point3d>();
+            List<Rhino.Geometry.Point3d> xyP = new List<Point3d>();
+            //List<Rhino.Geometry.Point3d> airyP = new List<Point3d>();
             List<Rhino.Geometry.Point3d> outputP = new List<Point3d>();
             Nurbs2x(xyNurbs, x);
-            myMasonry.computeAll(x);
+            myMasonry.setupNodesFromList(x);
+            myMasonry.computeGlobalCoord();
             foreach (var e in myMasonry.elemList)
             {
                 for (int i = 0; i < e.nIntPoint; i++)
@@ -267,8 +346,15 @@ namespace mikity.ghComponents
                     xyP.Add(d2);
                     args.Display.DrawPoint(d2, Rhino.Display.PointStyle.ControlPoint, 2, System.Drawing.Color.Red);
                 }
+                for (int i = 0; i < e.nBIntPoint; i++)
+                {
+                    var d = e.getBIntPoint(i);
+                    var d2 = new Rhino.Geometry.Point3d(d[0], d[1], d[2]);
+                    args.Display.DrawPoint(d2, Rhino.Display.PointStyle.X, 2, System.Drawing.Color.Red);
+                }
+                
             }
-            Nurbs2x(airyNurbs, x);
+            /*Nurbs2x(airyNurbs, x);
             myMasonry.computeAll(x);
             foreach (var e in myMasonry.elemList)
             {
@@ -279,9 +365,10 @@ namespace mikity.ghComponents
                     airyP.Add(d2);
                     args.Display.DrawPoint(d2, Rhino.Display.PointStyle.ControlPoint, 2, System.Drawing.Color.Red);
                 }
-            }
+            }*/
             Nurbs2x(outputNurbs, x);
-            myMasonry.computeAll(x);
+            myMasonry.setupNodesFromList(x);
+            myMasonry.computeGlobalCoord();
             foreach (var e in myMasonry.elemList)
             {
                 for (int i = 0; i < e.nIntPoint; i++)
@@ -292,9 +379,9 @@ namespace mikity.ghComponents
                     args.Display.DrawPoint(d2, Rhino.Display.PointStyle.ControlPoint, 2, System.Drawing.Color.Red);
                 }
             }
-            foreach (var i in xyP.Zip(airyP, (f, s) => new Rhino.Geometry.Line(f, s)))
+            /*foreach (var i in xyP.Zip(outputP, (f, s) => new Rhino.Geometry.Line(f, s)))
             {
-                args.Display.DrawDottedLine(i, System.Drawing.Color.Blue);
+                args.Display.DrawLine(i, System.Drawing.Color.LightGreen);
             }*/
             base.DrawViewportWires(args);
         }
@@ -307,9 +394,7 @@ namespace mikity.ghComponents
                 inputNurbs = (inputGeometry as Grasshopper.Kernel.Types.GH_Surface).Value.Surfaces[0].ToNurbsSurface();
                 initialized=initializeNurbs(inputNurbs);
             }
-            //DA.SetData(0, outputNurbs);
-            //DA.SetData(1, xyNurbs);
-            //DA.SetData(2, airyNurbs);
+            __update = true;
         }
         void deleteFixedPoints()
         {
@@ -407,8 +492,9 @@ namespace mikity.ghComponents
                 }
             }
             //Get Boundary
-            Rhino.Geometry.Polyline[] boundary = alternativeMesh.GetNakedEdges();
             boundaryIndex = new List<int>();
+            /*Rhino.Geometry.Polyline[] boundary = alternativeMesh.GetNakedEdges();
+            
             foreach (var p in boundary)
             {
                 for (int i = 0; i < p.Count - 1; i++)
@@ -416,8 +502,11 @@ namespace mikity.ghComponents
                     var f = alternativeMesh.Vertices.Select((e,index)=>new{e,index}).Where(e=>e.e==p[i]).Select(e=>e.index).First();
                     boundaryIndex.Add(f);
                 }
-            }
-
+            }*/
+            boundaryIndex.Add(0);
+            boundaryIndex.Add(nU-1);
+            boundaryIndex.Add(nU * nV - 1-nU+1);
+            boundaryIndex.Add(nU * nV - 1);
             airyNurbs = S.Duplicate() as Rhino.Geometry.NurbsSurface;
             outputNurbs = S.Duplicate() as Rhino.Geometry.NurbsSurface;
             xyNurbs = S.Duplicate() as Rhino.Geometry.NurbsSurface;
@@ -425,7 +514,6 @@ namespace mikity.ghComponents
             airyNurbs.Transform(X);
             outputNurbs.Transform(X);
             xyNurbs.Transform(X);
-
 
             for (int i = 0; i < nV; i++)
             {
@@ -491,22 +579,45 @@ namespace mikity.ghComponents
             }
             myMasonry.elemList.Clear();
             myMasonry.Clear();
-            for (int i = 1; i < nV - vDdim + 1; i++)
+            for (int j = 1; j < nV - vDdim + 1; j++)
             {
-                for (int j = 1; j < nU - uDdim + 1; j++)
+                for (int i = 1; i < nU - uDdim + 1; i++)
                 {
                     int[] index = new int[uDim * vDim];
                     for (int k = 0; k < vDim; k++)
                     {
                         for (int l = 0; l < uDim; l++)
                         {
-                            index[k * uDim + l] = (i - 1 + k) * nU + j - 1 + l;
+                            index[k * uDim + l] = (j - 1 + k) * nU + i - 1 + l;
                         }
                     }
-                    myMasonry.elemList.Add(new Minilla3D.Elements.nurbsElement(uDim, vDim, 2, index, j, i, uKnot, vKnot));
+                    //judge if on the border
+                    Minilla3D.Elements.nurbsElement.border border=Minilla3D.Elements.nurbsElement.border.None;
+                    if (j == 1)
+                    {
+                        border = border | Minilla3D.Elements.nurbsElement.border.Top;
+                    }
+                    if (i == 1)
+                    {
+                        border = border | Minilla3D.Elements.nurbsElement.border.Left;
+                    }
+                    if (j == nV - vDdim)
+                    {
+                        border = border | Minilla3D.Elements.nurbsElement.border.Bottom;
+                    }
+                    if (i == nU - uDdim)
+                    {
+                        border = border | Minilla3D.Elements.nurbsElement.border.Right;
+                    }
+                    myMasonry.elemList.Add(new Minilla3D.Elements.nurbsElement(uDim, vDim, 2, index, i, j, uKnot, vKnot, border));
                 }
             }
             myMasonry.AddRange(myMasonry.elemList);
+            nContraints = 0;
+            foreach (var e in myMasonry.elemList)
+            {
+                nContraints+=e.numberOfConstraintConditions();
+            }
         }
     }
     /*

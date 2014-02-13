@@ -17,7 +17,7 @@ namespace Minilla3D
 		}
         public class masonry:iObject{
 
-            public List<Minilla3D.Elements.element> elemList=new List<Elements.element>();
+            public List<Minilla3D.Elements.nurbsElement> elemList=new List<Elements.nurbsElement>();
             public void memoryMetric()
             {
                 foreach (Minilla3D.Elements.element e in elemList)
@@ -25,11 +25,11 @@ namespace Minilla3D
                     e.memoryMetric();       //metric->refMetric,invMetric->invRefMetric,dv->refDv
                 }
             }
-            public void Add(Minilla3D.Elements.element e)
+            public void Add(Minilla3D.Elements.nurbsElement e)
             {
                 elemList.Add(e);
             }
-            public void AddRange(IEnumerable<Minilla3D.Elements.element> collection)
+            public void AddRange(IEnumerable<Minilla3D.Elements.nurbsElement> collection)
             {
                 elemList.AddRange(collection);
             }
@@ -39,31 +39,46 @@ namespace Minilla3D
             }
             public void computeAiryFunction()
             {
-                //Parallel.ForEach(elemList, (e) =>
+                /*Parallel.ForEach(elemList, (e) =>
+                    e.computeAiryFunction()
+                );*/
                 foreach(var e in elemList){
                     e.computeAiryFunction();
-                }//);
+                }
             }
             public void computeEigenVectors()
             {
-                //Parallel.ForEach(elemList, (e) =>
-                foreach(var e in elemList){
-                    e.computeEigenVectors();
-                }//);
+                Parallel.ForEach(elemList, (e) =>
+                    e.computeEigenVectors()
+                    );
             }
             public void setupNodesFromList(double[,] x)
             {
-                //Parallel.ForEach(elemList, (e) =>
-                foreach(var e in elemList){
-                    e.setupNodesFromList(x);
-                }//);
+                Parallel.ForEach(elemList, (e) =>
+                    e.setupNodesFromList(x)
+                    );
             }
             public void computeHessian()
             {
-                //Parallel.ForEach(elemList, (e) =>
-                foreach(var e in elemList){
-                    e.computeHessian();
-                }//);
+                Parallel.ForEach(elemList, (e) =>
+                    e.computeHessian()
+                );
+            }
+            public void getResidual(ShoNS.Array.DoubleArray resid)
+            {
+                int num = 0;
+                foreach (var e in elemList)
+                {
+                    num = e.mergeResidual(resid, num);
+                }
+            }
+            public void getJacobian(ShoNS.Array.SparseDoubleArray jacob)
+            {
+                int num = 0;
+                foreach (var e in elemList)
+                {
+                    num=e.mergeJacobian(jacob, num);
+                }
             }
             public void getHessian(ShoNS.Array.SparseDoubleArray hess)
             {
@@ -75,12 +90,9 @@ namespace Minilla3D
 
             public void computeGlobalCoord()
             {
-
-                //Parallel.ForEach(elemList,(e) =>
-                foreach(var e in elemList){
-                    e.computeGlobalCoord();
-                }
-                //);
+                Parallel.ForEach(elemList,(e) =>
+                    e.computeGlobalCoord()                
+                );
             }
         }
         /*public class generalSpring : iObject

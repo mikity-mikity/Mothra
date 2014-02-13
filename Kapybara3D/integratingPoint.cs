@@ -30,6 +30,9 @@ namespace Minilla3D.Elements
 		double[,] refMetric;
 		double[,] invMetric;
 		double[,] refInvMetric;
+        public double[,][] gradient;
+        public double[][] tmpGradient =new double[3][];
+        public double[] edge;
         public double[,] SPK
         {
             protected set;
@@ -64,7 +67,7 @@ namespace Minilla3D.Elements
             baseVectors = new double[elemDim, __DIM];       //covariant base vectors
             Gamma = new double[2, 2, 2];  //Connection coefficient
             F = new double[2, 2];                    //Transform matrix (u,v)->(x,y)
-            f = new double[2, 3];                    //Transform matrix (x,y)->(u,v)
+            f = new double[2, 3];                           //Transform matrix (x,y)->(u,v)
             hessUV = new double[elemDim, elemDim];          //hessian of airy function with respect to uv
             hessXY = new double[elemDim, elemDim];          //hessian of airy function with respect to xy
             eigenVectors=new double[2][]{new double[3],new double[3]};
@@ -76,9 +79,34 @@ namespace Minilla3D.Elements
             refInvMetric=new double[elemDim,elemDim];
             SPK = new double[elemDim, elemDim];
             Cauchy = new double[elemDim, elemDim];
+            gradient = new double[2,2][];
+            tmpGradient[0] = new double[nNode];
+            tmpGradient[1] = new double[nNode];
+            tmpGradient[2] = new double[nNode];
+            for (int i = 0; i < 2; i++)
+            {
+                for (int j = 0; j < 2; j++)
+                {
+                    gradient[i, j] = new double[nNode];
+                }
+            }
             weight = 1.0;
             refDv = 1.0;
             dv=1.0;
+        }
+        public double[] getGradientOfBoundaryCondition(int i)
+        {
+            for (int j = 0; j < nNode; j++)
+            {
+                tmpGradient[i][j] = edge[0] * gradient[0, i][j] + edge[1] * gradient[1, i][j];
+            }
+            //Connection term
+
+            return tmpGradient[i];
+        }
+        public double getResidualOfBoundaryCondition(int i)
+        {
+            return edge[0] * hessUV[0, i] + edge[1] * hessUV[1, i];            
         }
         public void computeAiryFunction(double[] x)
         {
@@ -156,7 +184,17 @@ namespace Minilla3D.Elements
                     hessUV[n, m] -= val;
                 }
             }
-
+            //Create gradient of hessian with computed connection coefficients
+            for (int m = 0; m < 2; m++)
+            {
+                for (int n = 0; n < 2; n++)
+                {
+                    for (int k = 0; k < nNode; k++)
+                    {
+                        gradient[m, n][k] = D[m, n, 2, k * __DIM + 2] - Gamma[m, n, 0] * C[0, 2, k * 3 + 2] - Gamma[m, n, 1] * C[1, 2, k * 3 + 2];
+                    }
+                }
+            }
             //Hodge star on curvelinear coordinate
             double temp = hessUV[1, 1];
             SPK[1, 1] = hessUV[0, 0] / dv2;
