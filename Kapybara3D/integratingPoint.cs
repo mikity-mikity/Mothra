@@ -94,6 +94,17 @@ namespace Minilla3D.Elements
             refDv = 1.0;
             dv=1.0;
         }
+        public double[] getGradientOfTrace()
+        {
+            for(int j=0;j<nNode;j++)
+            {
+                tmpGradient[2][j] = gradient[0, 0][j] + gradient[1, 1][j];
+            }
+            return tmpGradient[2];
+        }
+        public void doSomethingAboutDeterminana()
+        {
+        }
         public double[] getGradientOfBoundaryCondition(int i)
         {
             for (int j = 0; j < nNode; j++)

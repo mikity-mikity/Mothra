@@ -176,6 +176,183 @@ namespace Minilla3D.Elements
             }
             return i + nBIntPoint * 2;
         }
+        double __cu(int n, int dim)
+        {
+            switch (dim)
+            {
+                case 6:
+                    switch (n)
+                    {
+                        case 0:
+                            return (-0.9491079123427585245261897) * 0.5 + 0.5;
+                        case 1:
+                            return (-0.7415311855993944398638648) * 0.5 + 0.5;
+                        case 2:
+                            return (-0.4058451513773971669066064) * 0.5 + 0.5;
+                        case 3:
+                            return 0.5;
+                        case 4:
+                            return (0.4058451513773971669066064) * 0.5 + 0.5;
+                        case 5:
+                            return (0.7415311855993944398638648) * 0.5 + 0.5;
+                        case 6:
+                            return (0.9491079123427585245261897) * 0.5 + 0.5;
+                        default:
+                            return 0;
+                    }
+                case 5:
+                    switch (n)
+                    {
+                        case 0:
+                            return (-0.9324695142031521) * 0.5 + 0.5;
+                        case 1:
+                            return (-0.6612093864662645) * 0.5 + 0.5;
+                        case 2:
+                            return (-0.2386191860831969) * 0.5 + 0.5;
+                        case 3:
+                            return (0.2386191860831969) * 0.5 + 0.5;
+                        case 4:
+                            return (0.6612093864662645) * 0.5 + 0.5;
+                        case 5:
+                            return (0.9324695142031521) * 0.5 + 0.5;
+                        default:
+                            return 0;
+                    }
+                case 4:
+                    switch (n)
+                    {
+                        case 0:
+                            return (-0.9061798459386640)*0.5+0.5;
+                        case 1:
+                            return (-0.5384693101056831)*0.5+0.5;
+                        case 2:
+                            return (0.0000000000000000)*0.5+0.5;
+                        case 3:
+                            return (0.5384693101056831)*0.5+0.5;
+                        case 4:
+                            return (0.9061798459386640)*0.5+0.5;
+				        default:
+                            return 0;
+                    }
+                case 3:
+                    switch (n)
+                    {
+                        case 0:
+                            return (-0.8611363115940526)*0.5+0.5;
+                        case 1:
+                            return (-0.3399810435848563)*0.5+0.5;
+                        case 2:
+                            return (0.3399810435848563)*0.5+0.5;
+                        case 3:
+                            return (0.8611363115940526)*0.5+0.5;
+                        default:
+                            return 0;
+                    }
+                case 2:
+                    switch (n)
+                    {
+                        case 0:
+                            return (-0.7745966692414834)*0.5+0.5;
+                        case 1:
+                            return (0.0000000000000000) * 0.5 + 0.5;
+                        case 3:
+                            return (0.7745966692414834) * 0.5 + 0.5;
+                        default:
+                            return 0;
+                    }
+                default:
+                    return 0;
+
+            }
+        }
+        double __pu(int n, int dim)
+        {
+            switch (dim)
+            {
+                case 6:
+                    switch (n)
+                    {
+                        case 0:
+                            return 0.1294849661688696932706114;
+                        case 1:
+                            return 0.2797053914892766679014678;
+                        case 2:
+                            return 0.3818300505051189449503698;
+                        case 3:
+                            return 0.4179591836734693877551020;
+                        case 4:
+                            return 0.3818300505051189449503698;
+                        case 5:
+                            return 0.2797053914892766679014678;
+                        case 6:
+                            return 0.1294849661688696932706114;
+                        default:
+                            return 0;
+                    }
+                case 5:
+                    switch (n)
+                    {
+                        case 0:
+                            return 0.1713244923791704 * 0.5;
+                        case 1:
+                            return 0.3607615730481386 * 0.5;
+                        case 2:
+                            return 0.4679139345726910 * 0.5;
+                        case 3:
+                            return 0.4679139345726910 * 0.5;
+                        case 4:
+                            return 0.3607615730481386 * 0.5;
+                        case 5:
+                            return 0.1713244923791704 * 0.5;
+                        default:
+                            return 0;
+                    }
+                case 4:
+                    switch (n)
+                    {
+                        case 0:
+                            return 0.2369268850561891 * 0.5;
+                        case 1:
+                            return 0.4786286704993665 * 0.5;
+                        case 2:
+                            return 0.5688888888888889 * 0.5;
+                        case 3:
+                            return 0.4786286704993665 * 0.5;
+                        case 4:
+                            return 0.2369268850561891*0.5;
+                        default:
+                            return 0;
+                    }
+                case 3:
+                    switch (n)
+                    {
+                        case 0:
+                            return 0.3478548451374538*0.5;
+                        case 1:
+                            return 0.6521451548625461*0.5;
+                        case 2:
+                            return 0.6521451548625461*0.5;
+                        case 3:
+                            return 0.3478548451374538 * 0.5;
+                        default:
+                            return 0;
+                    }
+                case 2:
+                    switch (n)
+                    {
+                        case 0:
+                            return 0.5555555555555556*0.5;
+                        case 1:
+                            return 0.8888888888888888*0.5;
+                        case 2:
+                            return 0.5555555555555556 * 0.5;
+                        default:
+                            return 0;
+                    }
+                default:
+                    return 0;
+            }
+        }
         public nurbsElement(int _uDim, int _vDim, int _elemDim, int[] _index, int uNum, int vNum, double[] uKnot, double[] vKnot, border _border = border.None)
             : base(_index, _uDim * _vDim, _elemDim, (_uDim + 1) * (_vDim + 1))
         {
@@ -183,57 +360,63 @@ namespace Minilla3D.Elements
             this.typeOfBorder = _border;
             switch (_border)
             {
+                case border.Left | border.Top|border.Right:
+                    this.bIntP = new integratingPoint[(_vDim - 1)*2+_uDim-1];
+                    nBIntPoint = (_vDim - 1) * 2 + _uDim - 1;
+                    break;
+                case border.Left | border.Bottom | border.Right:
+                    this.bIntP = new integratingPoint[(_vDim - 1)*2+_uDim-1];
+                    nBIntPoint = (_vDim - 1) * 2 + _uDim - 1;
+                    break;
+                case border.Left | border.Top | border.Bottom:
+                    this.bIntP = new integratingPoint[(_uDim - 1)*2+_vDim-1];
+                    nBIntPoint = (_uDim - 1) * 2 + _vDim - 1;
+                    break;
+                case border.Right | border.Top | border.Bottom:
+                    this.bIntP = new integratingPoint[(_uDim - 1)*2+_vDim-1];
+                    nBIntPoint = (_uDim - 1) * 2 + _vDim - 1;
+                    break;
+                case border.Left | border.Right:
+                    this.bIntP = new integratingPoint[_vDim - 1 + _vDim - 1];
+                    nBIntPoint = _vDim - 1 + _vDim - 1;
+                    break;
+                case border.Top | border.Bottom:
+                    this.bIntP = new integratingPoint[_uDim - 1 + _uDim - 1];
+                    nBIntPoint = _uDim - 1 + _uDim - 1;
+                    break;
                 case border.Left | border.Top:
-                    //this.bIntP = new integratingPoint[_vDim + 1+_uDim+1];
-                    //nBIntPoint = _vDim + 1 + _uDim + 1;
-                    this.bIntP = new integratingPoint[2];
-                    nBIntPoint = 2;
+                    this.bIntP = new integratingPoint[_uDim - 1+_vDim-1];
+                    nBIntPoint = _uDim - 1 + _vDim - 1;
                     break;
                 case border.Left | border.Bottom:
-                    //this.bIntP = new integratingPoint[_vDim + 1+_uDim+1];
-                    //nBIntPoint = _vDim + 1 + _uDim + 1;
-                    this.bIntP = new integratingPoint[2];
-                    nBIntPoint = 2;
+                    this.bIntP = new integratingPoint[_uDim - 1+_vDim-1];
+                    nBIntPoint = _uDim - 1 + _vDim - 1;
                     break;
                 case border.Right | border.Top:
-                    //this.bIntP = new integratingPoint[_vDim + 1+_uDim+1];
-                    //nBIntPoint = _vDim + 1 + _uDim + 1;
-                    this.bIntP = new integratingPoint[2];
-                    nBIntPoint = 2;                    
+                    this.bIntP = new integratingPoint[_uDim - 1+_vDim-1];
+                    nBIntPoint = _uDim - 1 + _vDim - 1;
                     break;
                 case border.Right | border.Bottom:
-                    //this.bIntP = new integratingPoint[_vDim + 1+_uDim+1];
-                    //nBIntPoint = _vDim + 1 + _uDim + 1;
-                    this.bIntP = new integratingPoint[2];
-                    nBIntPoint = 2;
+                    this.bIntP = new integratingPoint[_uDim - 1+_vDim-1];
+                    nBIntPoint = _uDim - 1 + _vDim - 1;
                     break;
                 case border.Left:
-                    //this.bIntP = new integratingPoint[_vDim + 1];
-                    //nBIntPoint = _vDim + 1;
-                    this.bIntP = new integratingPoint[1];
-                    nBIntPoint = 1;
+                    this.bIntP = new integratingPoint[_vDim-1];
+                    nBIntPoint = _vDim - 1;
                     break;
                 case border.Right:
-                    //this.bIntP = new integratingPoint[_vDim + 1];
-                    //nBIntPoint = _vDim + 1;
-                    this.bIntP = new integratingPoint[1];
-                    nBIntPoint = 1;
+                    this.bIntP = new integratingPoint[_vDim-1];
+                    nBIntPoint = _vDim - 1;
                     break;
                 case border.Top:
-                    //this.bIntP = new integratingPoint[_uDim + 1];
-                    //nBIntPoint = _uDim + 1;
-                    this.bIntP = new integratingPoint[1];
-                    nBIntPoint = 1;
+                    this.bIntP = new integratingPoint[_uDim-1];
+                    nBIntPoint = _uDim - 1;
                     break;
                 case border.Bottom:
-                    //this.bIntP = new integratingPoint[_uDim + 1];
-                    //nBIntPoint = _uDim + 1;
-                    this.bIntP = new integratingPoint[1];
-                    nBIntPoint = 1;
+                    this.bIntP = new integratingPoint[_uDim-1];
+                    nBIntPoint = _uDim - 1;
                     break;
                 default:
-                    //this.bIntP = new integratingPoint[0];
-                    //nBIntPoint = 0;
                     this.bIntP = new integratingPoint[0];
                     nBIntPoint = 0;
                     break;
@@ -261,102 +444,17 @@ namespace Minilla3D.Elements
 					
 			//Weight coefficient distribution
 			//Coordinates distribution
-			if(uDim==5)
-			{
-				_cu[0,0]=(-0.9324695142031521)*0.5+0.5;
-				_cu[0,1]=(-0.6612093864662645)*0.5+0.5;
-				_cu[0,2]=(-0.2386191860831969)*0.5+0.5;
-				_cu[0,3]=(0.2386191860831969)*0.5+0.5;
-				_cu[0,4]=(0.6612093864662645)*0.5+0.5;
-				_cu[0,5]=(0.9324695142031521)*0.5+0.5;
-				_pu[0,0]=0.1713244923791704*0.5;
-				_pu[0,1]=0.3607615730481386*0.5;
-				_pu[0,2]=0.4679139345726910*0.5;
-				_pu[0,3]=0.4679139345726910*0.5;
-				_pu[0,4]=0.3607615730481386*0.5;
-				_pu[0,5]=0.1713244923791704*0.5;
-			}
-			if(vDim==5)
-			{
-				_cu[1,0]=(-0.9324695142031521)*0.5+0.5;
-				_cu[1,1]=(-0.6612093864662645)*0.5+0.5;
-				_cu[1,2]=(-0.2386191860831969)*0.5+0.5;
-				_cu[1,3]=(0.2386191860831969)*0.5+0.5;
-				_cu[1,4]=(0.6612093864662645)*0.5+0.5;
-				_cu[1,5]=(0.9324695142031521)*0.5+0.5;
-				_pu[1,0]=0.1713244923791704*0.5;
-				_pu[1,1]=0.3607615730481386*0.5;
-				_pu[1,2]=0.4679139345726910*0.5;
-				_pu[1,3]=0.4679139345726910*0.5;
-				_pu[1,4]=0.3607615730481386*0.5;
-				_pu[1,5]=0.1713244923791704*0.5;
-			}
-			if(uDim==4)
-			{
-				_cu[0,0]=(-0.9061798459386640)*0.5+0.5;
-				_cu[0,1]=(-0.5384693101056831)*0.5+0.5;
-				_cu[0,2]=(0.0000000000000000)*0.5+0.5;
-				_cu[0,3]=(0.5384693101056831)*0.5+0.5;
-				_cu[0,4]=(0.9061798459386640)*0.5+0.5;
-				_pu[0,0]=0.2369268850561891*0.5;
-				_pu[0,1]=0.4786286704993665*0.5;
-				_pu[0,2]=0.5688888888888889*0.5;
-				_pu[0,3]=0.4786286704993665*0.5;
-				_pu[0,4]=0.2369268850561891*0.5;
-			}
-			if(vDim==4)
-			{
-				_cu[1,0]=(-0.9061798459386640)*0.5+0.5;
-				_cu[1,1]=(-0.5384693101056831)*0.5+0.5;
-				_cu[1,2]=(0.0000000000000000)*0.5+0.5;
-				_cu[1,3]=(0.5384693101056831)*0.5+0.5;
-				_cu[1,4]=(0.9061798459386640)*0.5+0.5;
-				_pu[1,0]=0.2369268850561891*0.5;
-				_pu[1,1]=0.4786286704993665*0.5;
-				_pu[1,2]=0.5688888888888889*0.5;
-				_pu[1,3]=0.4786286704993665*0.5;
-				_pu[1,4]=0.2369268850561891*0.5;
-			}
-			if(uDim==3)
-			{
-				_cu[0,0]=(-0.8611363115940526)*0.5+0.5;
-				_cu[0,1]=(-0.3399810435848563)*0.5+0.5;
-				_cu[0,2]=(0.3399810435848563)*0.5+0.5;
-				_cu[0,3]=(0.8611363115940526)*0.5+0.5;
-				_pu[0,0]=0.3478548451374538*0.5;
-				_pu[0,1]=0.6521451548625461*0.5;
-				_pu[0,2]=0.6521451548625461*0.5;
-				_pu[0,3]=0.3478548451374538*0.5;
-			}
-			if(vDim==3)
-			{
-				_cu[1,0]=(-0.8611363115940526)*0.5+0.5;
-				_cu[1,1]=(-0.3399810435848563)*0.5+0.5;
-				_cu[1,2]=(0.3399810435848563)*0.5+0.5;
-				_cu[1,3]=(0.8611363115940526)*0.5+0.5;
-				_pu[1,0]=0.3478548451374538*0.5;
-				_pu[1,1]=0.6521451548625461*0.5;
-				_pu[1,2]=0.6521451548625461*0.5;
-				_pu[1,3]=0.3478548451374538*0.5;
-			}
-			if(uDim==2)
-			{
-				_cu[0,0]=(-0.7745966692414834)*0.5+0.5;
-				_cu[0,1]=(0.0000000000000000)*0.5+0.5;
-				_cu[0,2]=(0.7745966692414834)*0.5+0.5;
-				_pu[0,0]=0.5555555555555556*0.5;
-				_pu[0,1]=0.8888888888888888*0.5;
-				_pu[0,2]=0.5555555555555556*0.5;
-			}
-			if(vDim==2)
-			{
-				_cu[1,0]=(-0.7745966692414834)*0.5+0.5;
-				_cu[1,1]=(0.0000000000000000)*0.5+0.5;
-				_cu[1,2]=(0.7745966692414834)*0.5+0.5;
-				_pu[1,0]=0.5555555555555556*0.5;
-				_pu[1,1]=0.8888888888888888*0.5;
-				_pu[1,2]=0.5555555555555556*0.5;
-			}
+            for (int i = 0; i < uDim; i++)
+            {
+                _cu[0, i] = __cu(i, uDim);
+                _pu[0, i] = __pu(i, uDim);
+            }
+            for (int i = 0; i < vDim; i++)
+            {
+                _cu[1, i] = __cu(i, vDim);
+                _pu[1, i] = __pu(i, vDim);
+            }
+            
 
             //Indeces for integrating points
 			for(int i=0;i<elemDim;i++)
@@ -419,134 +517,218 @@ namespace Minilla3D.Elements
 				}
 			}
             //local coordinates for integrating points on border
+            int count = 0;
             switch (_border)
             {
+                case border.Left | border.Top | border.Right:
+                    count = 0;
+                    for (int i = 0; i < _vDim - 1; i++,count++)
+                    {
+                        bIntP[count].localCoord[0] = 0;
+                        bIntP[count].localCoord[1] = __cu(i, _vDim - 1);
+                        bIntP[count].edge = new double[2] { 0, 1 };
+                    }
+                    for (int i = 0; i < _vDim - 1; i++,count++)
+                    {
+                        bIntP[count].localCoord[0] = 1;
+                        bIntP[count].localCoord[1] = __cu(i, _vDim - 1);
+                        bIntP[count].edge = new double[2] { 0, 1 };
+                    }
+                    for (int i = 0; i < _uDim - 1; i++,count++)
+                    {
+                        bIntP[count].localCoord[0] = __cu(i, _uDim - 1);
+                        bIntP[count].localCoord[1] = 0;
+                        bIntP[count].edge = new double[2] { 1, 0 };
+                    }
+                    break;
+                case border.Left | border.Bottom | border.Right:
+                    count = 0;
+                    for (int i = 0; i < _vDim - 1; i++,count++)
+                    {
+                        bIntP[count].localCoord[0] = 0;
+                        bIntP[count].localCoord[1] = __cu(i, _vDim - 1);
+                        bIntP[count].edge = new double[2] { 0, 1 };
+                    }
+                    for (int i = 0; i < _vDim - 1; i++,count++)
+                    {
+                        bIntP[count].localCoord[0] = 1;
+                        bIntP[count].localCoord[1] = __cu(i, _vDim - 1);
+                        bIntP[count].edge = new double[2] { 0, 1 };
+                    }
+                    for (int i = 0; i < _uDim - 1; i++,count++)
+                    {
+                        bIntP[count].localCoord[0] = __cu(i, _uDim - 1);
+                        bIntP[count].localCoord[1] = 1;
+                        bIntP[count].edge = new double[2] { 1, 0 };
+                    }
+                    break;
+                case border.Left | border.Top | border.Bottom:
+                    count = 0;
+                    for (int i = 0; i < _vDim - 1; i++,count++)
+                    {
+                        bIntP[count].localCoord[0] = 0;
+                        bIntP[count].localCoord[1] = __cu(i, _vDim - 1);
+                        bIntP[count].edge = new double[2] { 0, 1 };
+                    }
+                    for (int i = 0; i < _uDim - 1; i++,count++)
+                    {
+                        bIntP[count].localCoord[0] = __cu(i, _uDim - 1);
+                        bIntP[count].localCoord[1] = 0;
+                        bIntP[count].edge = new double[2] { 1, 0 };
+                    }
+                    for (int i = 0; i < _uDim - 1; i++,count++)
+                    {
+                        bIntP[count].localCoord[0] = __cu(i, _uDim - 1);
+                        bIntP[count].localCoord[1] = 1;
+                        bIntP[count].edge = new double[2] { 1, 0 };
+                    }
+                    break;
+                case border.Right | border.Top | border.Bottom:
+                    count = 0;
+                    for (int i = 0; i < _vDim - 1; i++,count++)
+                    {
+                        bIntP[count].localCoord[0] = 1;
+                        bIntP[count].localCoord[1] = __cu(i, _vDim - 1);
+                        bIntP[count].edge = new double[2] { 0, 1 };
+                    }
+                    for (int i = 0; i < _uDim - 1; i++,count++)
+                    {
+                        bIntP[count].localCoord[0] = __cu(i, _uDim - 1);
+                        bIntP[count].localCoord[1] = 0;
+                        bIntP[count].edge = new double[2] { 1, 0 };
+                    }
+                    for (int i = 0; i < _uDim - 1; i++,count++)
+                    {
+                        bIntP[count].localCoord[0] = __cu(i, _uDim - 1);
+                        bIntP[count].localCoord[1] = 1;
+                        bIntP[count].edge = new double[2] { 1, 0 };
+                    }
+                    break;
+                case border.Left | border.Right:
+                    count = 0;
+                    for (int i = 0; i < _vDim - 1; i++, count++)
+                    {
+                        bIntP[count].localCoord[0] = 0;
+                        bIntP[count].localCoord[1] = __cu(i, _vDim - 1);
+                        bIntP[count].edge = new double[2] { 0, 1 };
+                    }
+                    for (int i = 0; i < _vDim - 1; i++, count++)
+                    {
+                        bIntP[count].localCoord[0] = 1;
+                        bIntP[count].localCoord[1] = __cu(i, _vDim - 1);
+                        bIntP[count].edge = new double[2] { 0, 1 };
+                    }
+                    break;
+                case border.Top | border.Bottom:
+                    count = 0;
+                    for (int i = 0; i < _uDim - 1; i++, count++)
+                    {
+                        bIntP[count].localCoord[0] = __cu(i, _uDim - 1);
+                        bIntP[count].localCoord[1] = 0;
+                        bIntP[count].edge = new double[2] { 1, 0 };
+                    }
+                    for (int i = 0; i < _uDim - 1; i++, count++)
+                    {
+                        bIntP[count].localCoord[0] = __cu(i, _uDim - 1);
+                        bIntP[count].localCoord[1] = 1;
+                        bIntP[count].edge = new double[2] { 1, 0 };
+                    }
+                    break;
                 case border.Left | border.Top:
-                    /*for (int i = 0; i < _vDim + 1; i++)
+                    count = 0;
+                    for (int i = 0; i < _vDim - 1; i++,count++)
                     {
-                        bIntP[i].localCoord[0] = 0;
-                        bIntP[i].localCoord[1] = _cu[1, i];
-                        bIntP[i].edge = new double[2] { 0, 1 };
-                    }*/
-                    /*for (int i = _vDim + 1; i < _uDim + 1 + _vDim + 1; i++)
+                        bIntP[count].localCoord[0] = 0;
+                        bIntP[count].localCoord[1] = __cu(i, _vDim - 1);
+                        bIntP[count].edge = new double[2] { 0, 1 };
+                    }
+                    for (int i = 0; i < _uDim - 1; i++,count++)
                     {
-                        bIntP[i].localCoord[0] = _cu[0, i - (_vDim + 1)];
-                        bIntP[i].localCoord[1] = 0;
-                        bIntP[i].edge = new double[2] { 1, 0 };
-                    }*/
-                    bIntP[0].localCoord[0] = 0;
-                    bIntP[0].localCoord[1] = 0.5;
-                    bIntP[0].edge = new double[2] { 0, 1 };
-                    bIntP[1].localCoord[0] = 0.5;
-                    bIntP[1].localCoord[1] = 0;
-                    bIntP[1].edge = new double[2] { 1, 0 };
+                        bIntP[count].localCoord[0] = __cu(i, _uDim - 1);
+                        bIntP[count].localCoord[1] = 0;
+                        bIntP[count].edge = new double[2] { 1, 0 };
+                    }
                     break;
                 case border.Left | border.Bottom:
-                    /*for (int i = 0; i < _vDim + 1; i++)
+                    count=0;
+                    for (int i = 0; i < _vDim - 1; i++,count++)
                     {
-                        bIntP[i].localCoord[0] = 0;
-                        bIntP[i].localCoord[1] = _cu[1, i];
-                        bIntP[i].edge = new double[2] { 0, 1 };
-                    }*/
-                    /*for (int i = _vDim + 1; i < _uDim + 1 + _vDim + 1; i++)
+                        bIntP[count].localCoord[0] = 0;
+                        bIntP[count].localCoord[1] = __cu(i, _vDim - 1);
+                        bIntP[count].edge = new double[2] { 0, 1 };
+                    }
+                    for (int i = 0; i < _uDim - 1; i++,count++)
                     {
-                        bIntP[i].localCoord[0] = _cu[0, i - (_vDim + 1)];
-                        bIntP[i].localCoord[1] = 1;
-                        bIntP[i].edge = new double[2] { 1, 0 };
-                    }*/
-                    bIntP[0].localCoord[0] = 0;
-                    bIntP[0].localCoord[1] = 0.5;
-                    bIntP[0].edge = new double[2] { 0, 1 };
-                    bIntP[1].localCoord[0] = 0.5;
-                    bIntP[1].localCoord[1] = 1;
-                    bIntP[1].edge = new double[2] { 1, 0 };
+                        bIntP[count].localCoord[0] = __cu(i, _uDim - 1);
+                        bIntP[count].localCoord[1] = 1;
+                        bIntP[count].edge = new double[2] { 1, 0 };
+                    }
                     break;
                 case border.Right | border.Top:
-                    /*for (int i = 0; i < _vDim + 1; i++)
+                    count=0;
+                    for (int i = 0; i < _vDim - 1; i++,count++)
                     {
-                        bIntP[i].localCoord[0] = 1;
-                        bIntP[i].localCoord[1] = _cu[1, i];
-                        bIntP[i].edge = new double[2] { 0, 1 };
-                    }*/
-                    /*for (int i = _vDim + 1; i < _uDim + 1 + _vDim + 1; i++)
+                        bIntP[count].localCoord[0] = 1;
+                        bIntP[count].localCoord[1] = __cu(i, _vDim - 1);
+                        bIntP[count].edge = new double[2] { 0, 1 };
+                    }
+                    for (int i = 0; i < _uDim - 1; i++,count++)
                     {
-                        bIntP[i].localCoord[0] = _cu[0, i - (_vDim + 1)];
-                        bIntP[i].localCoord[1] = 0;
-                        bIntP[i].edge = new double[2] { 1, 0 };
-                    }*/
-                    bIntP[0].localCoord[0] = 1;
-                    bIntP[0].localCoord[1] = 0.5;
-                    bIntP[0].edge = new double[2] { 0, 1 };
-                    bIntP[1].localCoord[0] = 0.5;
-                    bIntP[1].localCoord[1] = 0;
-                    bIntP[1].edge = new double[2] { 1, 0 };
+                        bIntP[count].localCoord[0] = __cu(i, _uDim - 1);
+                        bIntP[count].localCoord[1] = 0;
+                        bIntP[count].edge = new double[2] { 1, 0 };
+                    }
                     break;
                 case border.Right | border.Bottom:
-                    /*for (int i = 0; i < _vDim + 1; i++)
+                    count=0;
+                    for (int i = 0; i < _vDim - 1; i++,count++)
                     {
-                        bIntP[i].localCoord[0] = 1;
-                        bIntP[i].localCoord[1] = _cu[1, i];
-                        bIntP[i].edge = new double[2] { 0, 1 };
+                        bIntP[count].localCoord[0] = 1;
+                        bIntP[count].localCoord[1] = __cu(i, _vDim - 1);
+                        bIntP[count].edge = new double[2] { 0, 1 };
                     }
-                    for (int i = _vDim + 1; i < _uDim + 1 + _vDim + 1; i++)
+                    for (int i = 0; i < _uDim - 1; i++,count++)
                     {
-                        bIntP[i].localCoord[0] = _cu[0, i - (_vDim + 1)];
-                        bIntP[i].localCoord[1] = 1;
-                        bIntP[i].edge = new double[2] { 1, 0 };
-                    }*/
-                    bIntP[0].localCoord[0] = 1;
-                    bIntP[0].localCoord[1] = 0.5;
-                    bIntP[0].edge = new double[2] { 0, 1 };
-                    bIntP[1].localCoord[0] = 0.5;
-                    bIntP[1].localCoord[1] = 1;
-                    bIntP[1].edge = new double[2] { 1, 0 };
-
+                        bIntP[count].localCoord[0] = __cu(i, _uDim - 1);
+                        bIntP[count].localCoord[1] = 1;
+                        bIntP[count].edge = new double[2] { 1, 0 };
+                    }
                     break;
                 case border.Left:
-                    /*for (int i = 0; i < nBIntPoint; i++)
+                    count=0;
+                    for (int i = 0; i < _vDim - 1; i++, count++)
                     {
-                        bIntP[i].localCoord[0] = 0;
-                        bIntP[i].localCoord[1] = _cu[1, i];
-                        bIntP[i].edge = new double[2] { 0, 1 };
-                    }*/
-                    bIntP[0].localCoord[0] = 0;
-                    bIntP[0].localCoord[1] = 0.5;
-                    bIntP[0].edge = new double[2] { 0, 1 };
+                        bIntP[count].localCoord[0] = 0;
+                        bIntP[count].localCoord[1] = __cu(i, _vDim - 1);
+                        bIntP[count].edge = new double[2] { 0, 1 };
+                    }
                     break;
                 case border.Right:
-                    /*for (int i = 0; i < nBIntPoint; i++)
+                    count=0;
+                    for (int i = 0; i < _vDim - 1; i++, count++)
                     {
-                        bIntP[i].localCoord[0] = 1;
-                        bIntP[i].localCoord[1] = _cu[1, i];
-                        bIntP[i].edge = new double[2] { 0, 1 };
-                    }*/
-                    bIntP[0].localCoord[0] = 1;
-                    bIntP[0].localCoord[1] = 0.5;
-                    bIntP[0].edge = new double[2] { 0, 1 };
-
+                        bIntP[count].localCoord[0] = 1;
+                        bIntP[count].localCoord[1] = __cu(i, _vDim - 1);
+                        bIntP[count].edge = new double[2] { 0, 1 };
+                    }
                     break;
                 case border.Top:
-                    /*for (int i = 0; i < nBIntPoint; i++)
+                    count=0;
+                    for (int i = 0; i < _uDim - 1; i++, count++)
                     {
-                        bIntP[i].localCoord[0] = _cu[0, i];
-                        bIntP[i].localCoord[1] = 0;
-                        bIntP[i].edge = new double[2] { 1, 0 };
-                    }*/
-                    bIntP[0].localCoord[0] = 0.5;
-                    bIntP[0].localCoord[1] = 0;
-                    bIntP[0].edge = new double[2] { 1, 0 };
+                        bIntP[count].localCoord[0] = __cu(i, _uDim - 1);
+                        bIntP[count].localCoord[1] = 0;
+                        bIntP[count].edge = new double[2] { 1, 0 };
+                    }
                     break;
                 case border.Bottom:
-                    /*for (int i = 0; i < nBIntPoint; i++)
+                    count=0;
+                    for (int i = 0; i < _uDim - 1; i++, count++)
                     {
-                        bIntP[i].localCoord[0] = _cu[0, i];
-                        bIntP[i].localCoord[1] = 1;
-                        bIntP[i].edge = new double[2] { 1, 0 };
-                    }*/
-                    bIntP[0].localCoord[0] = 0.5;
-                    bIntP[0].localCoord[1] = 1;
-                    bIntP[0].edge = new double[2] { 1, 0 };
-
+                        bIntP[count].localCoord[0] = __cu(i, _uDim - 1);
+                        bIntP[count].localCoord[1] = 1;
+                        bIntP[count].edge = new double[2] { 1, 0 };
+                    }
                     break;
                 default:
                     break;

@@ -6,6 +6,7 @@ using ShoNS.Array;
 using Rhino.Geometry;
 using System.IO;
 using System.Reflection;
+using SolverFoundation.Plugin.Gurobi;
 namespace mikity.ghComponents
 {
 
@@ -14,6 +15,7 @@ namespace mikity.ghComponents
     /// </summary>
     public class Mothra : Grasshopper.Kernel.GH_Component
     {
+        
         Rhino.Geometry.NurbsSurface inputNurbs, airyNurbs, xyNurbs,outputNurbs;
         Minilla3D.Objects.masonry myMasonry = new Minilla3D.Objects.masonry();
         double[,] x;
@@ -53,6 +55,7 @@ namespace mikity.ghComponents
 
         protected override void RegisterInputParams(Grasshopper.Kernel.GH_Component.GH_InputParamManager pManager)
         {
+            
             pManager.AddGenericParameter("Surface", "S", "inputSurface", Grasshopper.Kernel.GH_ParamAccess.item);
         }
 
@@ -152,9 +155,10 @@ namespace mikity.ghComponents
             {
                 norm += x[i, 2] * x[i, 2];
             }
+            norm = Math.Sqrt(norm);
             for (int i = 0; i < nU * nV; i++)
             {
-                x[i, 2] /= norm/300000;
+                x[i, 2] /= norm/500;
             }
             
             x2Nurbs(x, airyNurbs);
@@ -162,41 +166,33 @@ namespace mikity.ghComponents
             myMasonry.computeAiryFunction();
             ShoNS.Array.SparseDoubleArray jacobian = new SparseDoubleArray(nContraints, nU * nV);
             ShoNS.Array.DoubleArray residual = new DoubleArray(nContraints, 1);
-            for (int t = 0; t < 1; t++)
-            {
-                myMasonry.getJacobian(jacobian);
-                myMasonry.getResidual(residual);
-                System.Windows.Forms.MessageBox.Show(residual.Norm().ToString());
-                var solver2 = new SparseLU(jacobian.T * jacobian as SparseDoubleArray);
+            myMasonry.getJacobian(jacobian);
+            var mat = jacobian * jacobian.T as SparseDoubleArray;
+            var solver2 = new SparseLU(mat as SparseDoubleArray);
+            
+            myMasonry.getResidual(residual);
+            System.Windows.Forms.MessageBox.Show(residual.Norm().ToString());
 
-                var dx2 = solver2.Solve(jacobian.T * residual);
-                for (int i = 0; i < nU * nV; i++)
-                {
-                    x[i, 2] -= dx2[i, 0] * 0.01;
-                }
-                minZ = Double.MaxValue;
-                for (int i = 0; i < nU * nV; i++)
-                {
-                    if (x[i, 2] < minZ) minZ = x[i, 2];
-                }
-                for (int i = 0; i < nU * nV; i++)
-                {
-                    x[i, 2] -= minZ;
-                }
-                norm = 0;
-                for (int i = 0; i < nU * nV; i++)
-                {
-                     norm+= x[i, 2]*x[i, 2];
-                }
-                /*for (int i = 0; i < nU * nV; i++)
-                {
-                    x[i, 2] /= norm / 300000;
-                }*/
-                x2Nurbs(x, airyNurbs);
-                createAiryPoints(airyNurbs);
-                myMasonry.setupNodesFromList(x);
-                myMasonry.computeAiryFunction();
+            var dx2 = jacobian.T * solver2.Solve(residual);
+            for (int i = 0; i < nU * nV; i++)
+            {
+                x[i, 2] -= dx2[i, 0] * 1;
             }
+            minZ = Double.MaxValue;
+            for (int i = 0; i < nU * nV; i++)
+            {
+                if (x[i, 2] < minZ) minZ = x[i, 2];
+            }
+            for (int i = 0; i < nU * nV; i++)
+            {
+                x[i, 2] -= minZ;
+            }
+            x2Nurbs(x, airyNurbs);
+            createAiryPoints(airyNurbs);
+            myMasonry.setupNodesFromList(x);
+            myMasonry.computeAiryFunction();
+            myMasonry.getResidual(residual);
+            System.Windows.Forms.MessageBox.Show(residual.Norm().ToString());
             //Solve
             myMasonry.computeEigenVectors();
             Nurbs2x(xyNurbs, x);
@@ -426,18 +422,13 @@ namespace mikity.ghComponents
         void createAiryInitialSurface(Rhino.Geometry.NurbsSurface S)
         {
             //find the center point
-            var am = Rhino.Geometry.AreaMassProperties.Compute(S);
-            var CP=am.Centroid;
-            var A = am.Area;
-            var R = System.Math.Sqrt(A / System.Math.PI)*2;
             for (int i = 0; i < nV; i++)
             {
                 for (int j = 0; j < nU; j++)
                 {
-                    var P = airyNurbs.Points.GetControlPoint(j, i);
-                    var r2 = (P.Location.X - CP.X) * (P.Location.X - CP.X) + (P.Location.Y - CP.Y) * (P.Location.Y - CP.Y);
-                    var R2 = Math.Sqrt(R * R - r2)-R/2;
-                    airyNurbs.Points.SetControlPoint(j, i, new Rhino.Geometry.ControlPoint(P.Location.X, P.Location.Y, R2));
+                    var P = S.Points.GetControlPoint(j, i);
+                    double Z = (i - ((nV-1) / 2d)) * (i - ((nV-1) / 2d)) + (j - ((nU-1) / 2d)) * (j - ((nU-1) / 2d));
+                    airyNurbs.Points.SetControlPoint(j, i, new Rhino.Geometry.ControlPoint(P.Location.X, P.Location.Y, -Z));
                 }
             }
         }
@@ -493,7 +484,7 @@ namespace mikity.ghComponents
             }
             //Get Boundary
             boundaryIndex = new List<int>();
-            /*Rhino.Geometry.Polyline[] boundary = alternativeMesh.GetNakedEdges();
+            Rhino.Geometry.Polyline[] boundary = alternativeMesh.GetNakedEdges();
             
             foreach (var p in boundary)
             {
@@ -502,11 +493,12 @@ namespace mikity.ghComponents
                     var f = alternativeMesh.Vertices.Select((e,index)=>new{e,index}).Where(e=>e.e==p[i]).Select(e=>e.index).First();
                     boundaryIndex.Add(f);
                 }
-            }*/
-            boundaryIndex.Add(0);
+            }
+            /*boundaryIndex.Add(0);
             boundaryIndex.Add(nU-1);
             boundaryIndex.Add(nU * nV - 1-nU+1);
             boundaryIndex.Add(nU * nV - 1);
+            */
             airyNurbs = S.Duplicate() as Rhino.Geometry.NurbsSurface;
             outputNurbs = S.Duplicate() as Rhino.Geometry.NurbsSurface;
             xyNurbs = S.Duplicate() as Rhino.Geometry.NurbsSurface;
