@@ -176,6 +176,29 @@ namespace Minilla3D.Elements
             }
             return i + nBIntPoint * 2;
         }
+        public int mergeJacobianOfCurvature(ShoNS.Array.SparseDoubleArray jacobH, int num)
+        {
+            for (int i = 0; i < nIntPoint; i++)
+            {
+                var grad = intP[i].getGradientOfH(0, 0);
+                for (int f = 0; f < nNode; f++)
+                {
+                    jacobH[num + i * 3 + 0, index[f]] = grad[f];
+                }
+                grad = intP[i].getGradientOfH(1, 1);
+                for (int f = 0; f < nNode; f++)
+                {
+                    jacobH[num + i * 3 + 1, index[f]] = grad[f];
+                }
+                grad = intP[i].getGradientOfH(0, 1);
+                for (int f = 0; f < nNode; f++)
+                {
+                    jacobH[num + i * 3 + 2, index[f]] = grad[f];
+                }
+            }
+            return num + nIntPoint*3;
+        }
+
         double __cu(int n, int dim)
         {
             switch (dim)
@@ -252,7 +275,7 @@ namespace Minilla3D.Elements
                     switch (n)
                     {
                         case 0:
-                            return (-0.7745966692414834)*0.5+0.5;
+                            return (-0.7745966692414834) * 0.5 + 0.5;
                         case 1:
                             return (0.0000000000000000) * 0.5 + 0.5;
                         case 3:
@@ -273,19 +296,19 @@ namespace Minilla3D.Elements
                     switch (n)
                     {
                         case 0:
-                            return 0.1294849661688696932706114;
+                            return 0.1294849661688696932706114 * 0.5;
                         case 1:
-                            return 0.2797053914892766679014678;
+                            return 0.2797053914892766679014678 * 0.5;;
                         case 2:
-                            return 0.3818300505051189449503698;
+                            return 0.3818300505051189449503698 * 0.5;;
                         case 3:
-                            return 0.4179591836734693877551020;
+                            return 0.4179591836734693877551020 * 0.5;;
                         case 4:
-                            return 0.3818300505051189449503698;
+                            return 0.3818300505051189449503698 * 0.5;;
                         case 5:
-                            return 0.2797053914892766679014678;
+                            return 0.2797053914892766679014678 * 0.5;;
                         case 6:
-                            return 0.1294849661688696932706114;
+                            return 0.1294849661688696932706114 * 0.5;;
                         default:
                             return 0;
                     }
@@ -319,7 +342,7 @@ namespace Minilla3D.Elements
                         case 3:
                             return 0.4786286704993665 * 0.5;
                         case 4:
-                            return 0.2369268850561891*0.5;
+                            return 0.2369268850561891 * 0.5;
                         default:
                             return 0;
                     }
@@ -444,12 +467,12 @@ namespace Minilla3D.Elements
 					
 			//Weight coefficient distribution
 			//Coordinates distribution
-            for (int i = 0; i < uDim; i++)
+            for (int i = 0; i < uDim+1; i++)
             {
                 _cu[0, i] = __cu(i, uDim);
                 _pu[0, i] = __pu(i, uDim);
             }
-            for (int i = 0; i < vDim; i++)
+            for (int i = 0; i < vDim+1; i++)
             {
                 _cu[1, i] = __cu(i, vDim);
                 _pu[1, i] = __pu(i, vDim);
@@ -902,5 +925,6 @@ namespace Minilla3D.Elements
                 }
             }
         }
+
     }
 }

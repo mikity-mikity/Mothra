@@ -46,6 +46,16 @@ namespace Minilla3D
                     e.computeAiryFunction();
                 }
             }
+            public void precompute()
+            {
+                /*Parallel.ForEach(elemList, (e) =>
+                    e.computeAiryFunction()
+                );*/
+                foreach (var e in elemList)
+                {
+                    e.precompute();
+                }
+            }
             public void computeEigenVectors()
             {
                 Parallel.ForEach(elemList, (e) =>
@@ -80,6 +90,15 @@ namespace Minilla3D
                     num=e.mergeJacobian(jacob, num);
                 }
             }
+            public void GetJacobianOfCurvature(SparseDoubleArray jacobH)
+            {
+                int num = 0;
+                foreach (var e in elemList)
+                {
+                    num = e.mergeJacobianOfCurvature(jacobH, num);
+                }
+            }
+
             public void getHessian(ShoNS.Array.SparseDoubleArray hess)
             {
                 foreach (var e in elemList)
@@ -94,6 +113,17 @@ namespace Minilla3D
                     e.computeGlobalCoord()                
                 );
             }
+
+            public int totalNumberOfIntPnts()
+            {
+                int num = 0;
+                foreach (var e in elemList)
+                {
+                    num += e.nIntPoint;
+                }
+                return num;
+            }
+
         }
         /*public class generalSpring : iObject
         {

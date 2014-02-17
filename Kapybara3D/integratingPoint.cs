@@ -32,6 +32,7 @@ namespace Minilla3D.Elements
 		double[,] refInvMetric;
         public double[,][] gradient;
         public double[][] tmpGradient =new double[3][];
+        public double[,] tmpHessian;
         public double[] edge;
         public double[,] SPK
         {
@@ -83,6 +84,7 @@ namespace Minilla3D.Elements
             tmpGradient[0] = new double[nNode];
             tmpGradient[1] = new double[nNode];
             tmpGradient[2] = new double[nNode];
+            tmpHessian = new double[nNode,nNode];
             for (int i = 0; i < 2; i++)
             {
                 for (int j = 0; j < 2; j++)
@@ -94,16 +96,9 @@ namespace Minilla3D.Elements
             refDv = 1.0;
             dv=1.0;
         }
-        public double[] getGradientOfTrace()
+        public double[] getGradientOfH(int i,int j)
         {
-            for(int j=0;j<nNode;j++)
-            {
-                tmpGradient[2][j] = gradient[0, 0][j] + gradient[1, 1][j];
-            }
-            return tmpGradient[2];
-        }
-        public void doSomethingAboutDeterminana()
-        {
+            return gradient[i,j];
         }
         public double[] getGradientOfBoundaryCondition(int i)
         {
@@ -111,41 +106,26 @@ namespace Minilla3D.Elements
             {
                 tmpGradient[i][j] = edge[0] * gradient[0, i][j] + edge[1] * gradient[1, i][j];
             }
-            //Connection term
-
             return tmpGradient[i];
         }
         public double getResidualOfBoundaryCondition(int i)
         {
             return edge[0] * hessUV[0, i] + edge[1] * hessUV[1, i];            
         }
-        public void computeAiryFunction(double[] x)
+        public void precompute(double[] x)
         {
-            for (int n = 0; n < 2; n++)
-            {
-                for (int m = 0; m < 2; m++)
-                {
-                    double val = 0;
-                    for (int i = 0; i < nDV; i++)
-                    {
-                        val += D[n, m, 2, i] * x[i];
-                    }
-                    hessUV[n, m]=val;
-                }
-            }
             //covariant base vectors
             for (int n = 0; n < 2; n++)
             {
-                double fx=0, fy=0, fphi=0;
+                double fx = 0, fy = 0;
                 for (int i = 0; i < nDV; i++)
                 {
-                    fx+= C[n, 0, i] * x[i];
-                    fy+= C[n, 1, i] * x[i];
-                    fphi+= C[n, 2, i] * x[i];
+                    fx += C[n, 0, i] * x[i];
+                    fy += C[n, 1, i] * x[i];
                 }
                 f[n, 0] = fx;
                 f[n, 1] = fy;
-                f[n, 2] = fphi; //first order derivative of phi
+                f[n, 2] = 0;
             }
             for (int n = 0; n < 2; n++)
             {
@@ -155,16 +135,19 @@ namespace Minilla3D.Elements
                 }
             }
             _inv2(metric, invMetric);
+            SPK[0, 0] = invMetric[0, 0];
+            SPK[0, 1] = invMetric[0, 1];
+            SPK[1, 0] = invMetric[1, 0];
+            SPK[1, 1] = invMetric[1, 1];
             dv = Math.Sqrt(_det2(metric));
             refDv = dv;
-            double dv2 = dv * dv;
             //contravatiant base vectors
             for (int n = 0; n < 2; n++)
             {
                 F[n, 0] = f[0, 0] * invMetric[0, n] + f[1, 0] * invMetric[1, n];
                 F[n, 1] = f[0, 1] * invMetric[0, n] + f[1, 1] * invMetric[1, n];
             }
-            
+
             //Connection coefficients
             for (int n = 0; n < 2; n++)
             {
@@ -176,23 +159,10 @@ namespace Minilla3D.Elements
                         gx += D[n, m, 0, i] * x[i];
                         gy += D[n, m, 1, i] * x[i];
                     }
-                    for(int k=0;k<elemDim;k++)
+                    for (int k = 0; k < elemDim; k++)
                     {
                         Gamma[n, m, k] = gx * F[k, 0] + gy * F[k, 1];
                     }
-                }
-            }
-            //Overrite hessuv with connection coefficients
-            for (int m = 0; m < 2; m++)
-            {
-                for (int n = 0; n < 2; n++)
-                {
-                    double val = 0;
-                    for (int k = 0; k < 2; k++)
-                    {
-                        val += Gamma[n, m, k] * f[k, 2];
-                    }
-                    hessUV[n, m] -= val;
                 }
             }
             //Create gradient of hessian with computed connection coefficients
@@ -206,14 +176,53 @@ namespace Minilla3D.Elements
                     }
                 }
             }
+        }
+        public void computeAiryFunction(double[] x)
+        {
+            for (int n = 0; n < 2; n++)
+            {
+                for (int m = 0; m < 2; m++)
+                {
+                    double val = 0;
+                    for (int i = 0; i < nNode; i++)
+                    {
+                        val += D[n, m, 2, i * 3 + 2] * x[i * 3 + 2];
+                    }
+                    hessUV[n, m]=val;
+                }
+            }
+            //covariant base vectors
+            for (int n = 0; n < 2; n++)
+            {
+                double fphi=0;
+                for (int i = 0; i < nDV; i++)
+                {
+                    fphi+= C[n, 2, i] * x[i];
+                }
+                f[n, 2] = fphi; //first order derivative of phi
+            }
+            double dv2 = dv * dv;
+            //Overrite hessuv with connection coefficients
+            for (int m = 0; m < 2; m++)
+            {
+                for (int n = 0; n < 2; n++)
+                {
+                    double val = 0;
+                    for (int k = 0; k < 2; k++)
+                    {
+                        val += Gamma[n, m, k] * f[k, 2];
+                    }
+                    hessUV[n, m] -= val;
+                }
+            }
             //Hodge star on curvelinear coordinate
             double temp = hessUV[1, 1];
             SPK[1, 1] = hessUV[0, 0] / dv2;
             SPK[0, 0] = temp / dv2;
             SPK[0, 1] = -hessUV[0, 1] / dv2;
             SPK[1, 0] = -hessUV[1, 0] / dv2;
-            
-            
+
+
             /*//Coordinate transformation
             for (int i = 0; i < 2; i++)
             {

@@ -111,6 +111,17 @@ namespace Minilla3D.Elements
                 bIntP[i].computeAiryFunction(node);
             }
         }
+        public void precompute()
+        {
+            for (int i = 0; i < nIntPoint; i++)
+            {
+                intP[i].precompute(node);
+            }
+            for (int i = 0; i < nBIntPoint; i++)
+            {
+                bIntP[i].precompute(node);
+            }
+        }
         public void computeEigenVectors()
         {
             for(int i=0;i<nIntPoint;i++)

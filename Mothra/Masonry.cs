@@ -6,7 +6,7 @@ using ShoNS.Array;
 using Rhino.Geometry;
 using System.IO;
 using System.Reflection;
-using SolverFoundation.Plugin.Gurobi;
+using Gurobi;
 namespace mikity.ghComponents
 {
 
@@ -19,7 +19,7 @@ namespace mikity.ghComponents
         Rhino.Geometry.NurbsSurface inputNurbs, airyNurbs, xyNurbs,outputNurbs;
         Minilla3D.Objects.masonry myMasonry = new Minilla3D.Objects.masonry();
         double[,] x;
-        int nContraints=0;
+        int nConstraints=0;
         bool initialized = false;
         int nU, nV;
         List<Guid> fixedPointGuids = null;
@@ -159,20 +159,113 @@ namespace mikity.ghComponents
             for (int i = 0; i < nU * nV; i++)
             {
                 x[i, 2] /= norm/500;
-            }
-            
+            }            
             x2Nurbs(x, airyNurbs);
             myMasonry.setupNodesFromList(x);
-            myMasonry.computeAiryFunction();
-            ShoNS.Array.SparseDoubleArray jacobian = new SparseDoubleArray(nContraints, nU * nV);
-            ShoNS.Array.DoubleArray residual = new DoubleArray(nContraints, 1);
+            myMasonry.precompute();
+            ShoNS.Array.SparseDoubleArray jacobian = new SparseDoubleArray(nConstraints, nU * nV);
+            ShoNS.Array.DoubleArray residual = new DoubleArray(nConstraints, 1);
+            int nIntPnt=myMasonry.totalNumberOfIntPnts();
+            ShoNS.Array.SparseDoubleArray jacobianH = new SparseDoubleArray(nIntPnt*3, nU * nV);
+            myMasonry.GetJacobianOfCurvature(jacobianH);
+            //myMasonry.GetJacobianOfGaussianCurvature(jacobianK);
+
             myMasonry.getJacobian(jacobian);
-            var mat = jacobian * jacobian.T as SparseDoubleArray;
-            var solver2 = new SparseLU(mat as SparseDoubleArray);
-            
             myMasonry.getResidual(residual);
             System.Windows.Forms.MessageBox.Show(residual.Norm().ToString());
+            try
+            {
+                ////////////////////////////GUROBI///////////////////
+                GRBEnv env = new GRBEnv("qcp.log");
+                GRBModel model = new GRBModel(env);
+                double[] lb = new double[nU * nV];
+                double[] ub = new double[nU * nV];
+                char[] type = new char[nU * nV];
+                string[] name = new string[nU * nV];
+                int count = 0;
+                for (int j = 0; j < nV; j++)
+                {
+                    for (int i = 0; i < nU; i++, count++)
+                    {
+                        lb[count] = 0;
+                        ub[count] = GRB.INFINITY;
+                        type[count] = GRB.CONTINUOUS;
+                        name[count] = "[" + i.ToString("g") + "," + j.ToString("g") + "]";
+                    }
+                }
+                GRBVar[] vars = model.AddVars(lb, ub, null, type, name);
+                model.Update();
+                //Objective
+                GRBQuadExpr obj = new GRBQuadExpr();
+                obj.AddTerm(5, vars[(nU/2)+ (nV/2)*nU]);
+                model.SetObjective(obj);
+                
+                GRBLinExpr[] exprs = new GRBLinExpr[nIntPnt*3];
+                double[] rhs = new double[nIntPnt*3];
+                char[] senses = new char[nIntPnt*3];
+                
+                for (int i = 0; i < nIntPnt*3; i++)
+                {
+                    exprs[i] = new GRBLinExpr();
+                    rhs[i] = -20;
+                    senses[i] = GRB.LESS_EQUAL;
+                }
+                foreach (var e in jacobianH.Elements)
+                {
+                    exprs[e.Row].AddTerm(e.Value, vars[e.Col]);
+                }
+                model.AddConstrs(exprs, senses, rhs, null);
+                
+                model.Optimize();
+                switch (model.Get(GRB.IntAttr.Status))
+                {
+                    case GRB.Status.OPTIMAL:
+                        System.Windows.Forms.MessageBox.Show("Congraturation");
+                        break;
+                    case GRB.Status.UNBOUNDED:
+                        System.Windows.Forms.MessageBox.Show("UNBOUNDED");
+                        break;
+                    case GRB.Status.CUTOFF:
+                        System.Windows.Forms.MessageBox.Show("CUTOFF");
+                        break;
+                    case GRB.Status.INF_OR_UNBD:
+                        System.Windows.Forms.MessageBox.Show("INF_OR_UNBD");
+                        break;
+                    case GRB.Status.INFEASIBLE:
+                        System.Windows.Forms.MessageBox.Show("INFEASIBLE");
+                        break;
+                    case GRB.Status.INPROGRESS:
+                        System.Windows.Forms.MessageBox.Show("INPROGRESS");
+                        break;
+                    case GRB.Status.ITERATION_LIMIT:
+                        System.Windows.Forms.MessageBox.Show("ITERATION_LIMIT");
+                        break;
+                    default:
+                        System.Windows.Forms.MessageBox.Show("Something elese");
+                        break;
 
+                }
+                //if ( == GRB.Status.OPTIMAL)
+                //{
+                    for (int j = 0; j < nU * nV; j++)
+                    {
+                        x[j,2] = vars[j].Get(GRB.DoubleAttr.X);
+                    }
+                //}
+                model.Dispose();
+                env.Dispose();
+
+            }
+            catch (GRBException e)
+            {
+                AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, "GUROBI ERROR!" + e.ErrorCode + ". " + e.Message);
+                return;
+            }
+
+            /*var mat = jacobian * jacobian.T as SparseDoubleArray;
+            var solver2 = new SparseLU(mat as SparseDoubleArray);
+            
+            
             var dx2 = jacobian.T * solver2.Solve(residual);
             for (int i = 0; i < nU * nV; i++)
             {
@@ -186,7 +279,7 @@ namespace mikity.ghComponents
             for (int i = 0; i < nU * nV; i++)
             {
                 x[i, 2] -= minZ;
-            }
+            }*/
             x2Nurbs(x, airyNurbs);
             createAiryPoints(airyNurbs);
             myMasonry.setupNodesFromList(x);
@@ -604,11 +697,10 @@ namespace mikity.ghComponents
                     myMasonry.elemList.Add(new Minilla3D.Elements.nurbsElement(uDim, vDim, 2, index, i, j, uKnot, vKnot, border));
                 }
             }
-            myMasonry.AddRange(myMasonry.elemList);
-            nContraints = 0;
+            nConstraints = 0;
             foreach (var e in myMasonry.elemList)
             {
-                nContraints+=e.numberOfConstraintConditions();
+                nConstraints+=e.numberOfConstraintConditions();
             }
         }
     }
