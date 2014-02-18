@@ -171,12 +171,14 @@ namespace mikity.ghComponents
             //myMasonry.GetJacobianOfGaussianCurvature(jacobianK);
 
             myMasonry.getJacobian(jacobian);
+            System.Windows.Forms.MessageBox.Show(jacobian.Rows.ToList()[1].ToString());
             myMasonry.getResidual(residual);
             System.Windows.Forms.MessageBox.Show(residual.Norm().ToString());
             try
             {
                 ////////////////////////////GUROBI///////////////////
                 GRBEnv env = new GRBEnv("qcp.log");
+                //env.Set(GRB.IntParam.DualReductions, 0);
                 GRBModel model = new GRBModel(env);
                 double[] lb = new double[nU * nV];
                 double[] ub = new double[nU * nV];
@@ -190,16 +192,53 @@ namespace mikity.ghComponents
                         lb[count] = 0;
                         ub[count] = GRB.INFINITY;
                         type[count] = GRB.CONTINUOUS;
-                        name[count] = "[" + i.ToString("g") + "," + j.ToString("g") + "]";
+                        name[count] = "N[" + i.ToString("g") + "," + j.ToString("g") + "]";
                     }
                 }
+                lb[0] = 250;
+                ub[0] = 250;
+                lb[nU - 1] = 250;
+                ub[nU - 1] = 250;
+                lb[nU * nV - nU] = 250;
+                ub[nU * nV - nU] = 250;
+                lb[nU * nV - 1] = 250;
+                ub[nU * nV - 1] = 250;
+                
+
+                lb[(nU / 2) + (nV / 2) * nU] = 0;
+                ub[(nU / 2) + (nV / 2) * nU] = 0;
+                /*lb[14] = 0; ub[14] = 0;
+                lb[15] = 0; ub[15] = 0;
+                lb[20] = 0; ub[20] = 0;
+                lb[21] = 0; ub[21] = 0;
+                */
                 GRBVar[] vars = model.AddVars(lb, ub, null, type, name);
                 model.Update();
-                //Objective
-                GRBQuadExpr obj = new GRBQuadExpr();
-                obj.AddTerm(5, vars[(nU/2)+ (nV/2)*nU]);
-                model.SetObjective(obj);
+                lb = new double[nIntPnt*3];
+                ub = new double[nIntPnt * 3];
+                type = new char[nIntPnt * 3];
+                name = new string[nIntPnt * 3];
+                for (int j = 0; j<nIntPnt; j++)
+                {
+                    lb[j * 3] = 0;
+                    ub[j * 3] = GRB.INFINITY;
+                    type[j * 3] = GRB.CONTINUOUS;
+                    name[j * 3] = "P" + j.ToString("g") + "-" + "phi_{0,0}";
+                    lb[j * 3+1] = 0;
+                    ub[j * 3+1] = GRB.INFINITY;
+                    type[j * 3+1] = GRB.CONTINUOUS;
+                    name[j * 3+1] = "P" + j.ToString("g") + "-" + "phi_{1,1}";
+                    lb[j * 3 + 2] = -GRB.INFINITY;
+                    ub[j * 3 + 2] = GRB.INFINITY;
+                    type[j * 3+2] = GRB.CONTINUOUS;
+                    name[j * 3 + 2] = "P" + j.ToString("g") + "-" + "phi_{0,1}";
+                }
+                GRBVar[] phis = model.AddVars(lb, ub, null, type, name);
+
+                model.Update();
                 
+
+                //Add Hessian entries to variables
                 GRBLinExpr[] exprs = new GRBLinExpr[nIntPnt*3];
                 double[] rhs = new double[nIntPnt*3];
                 char[] senses = new char[nIntPnt*3];
@@ -207,15 +246,74 @@ namespace mikity.ghComponents
                 for (int i = 0; i < nIntPnt*3; i++)
                 {
                     exprs[i] = new GRBLinExpr();
-                    rhs[i] = -20;
-                    senses[i] = GRB.LESS_EQUAL;
+                    rhs[i] = 0;
+                    senses[i] = GRB.EQUAL;
                 }
                 foreach (var e in jacobianH.Elements)
                 {
                     exprs[e.Row].AddTerm(e.Value, vars[e.Col]);
+                    exprs[e.Row].AddTerm(-1, phis[e.Row]);
                 }
                 model.AddConstrs(exprs, senses, rhs, null);
-                
+                //Quadratic constraints  detH>0
+                for (int i = 0; i < nIntPnt; i++)
+                {
+                    GRBQuadExpr Qlhs = new GRBQuadExpr(phis[i * 3 + 2] * phis[i * 3 + 2]);
+                    GRBQuadExpr Qrhs = new GRBQuadExpr(phis[i * 3 + 0] * phis[i * 3 + 1]);
+                    model.AddQConstr(Qlhs, GRB.LESS_EQUAL, Qrhs, null);
+                }
+
+                //Boundary variable
+                lb = new double[nConstraints];
+                ub = new double[nConstraints];
+                type = new char[nConstraints];
+                name = new string[nConstraints];
+                for (int j = 0; j < nConstraints; j++)
+                {
+                    lb[j] = 0;// -GRB.INFINITY;
+                    ub[j] = 20;// GRB.INFINITY;
+                    type[j] = GRB.CONTINUOUS;
+                    name[j] = "B" + j.ToString("g");
+                }
+                ub[20] = 2;
+                ub[52] = 2;
+                GRBVar[] bVars = model.AddVars(lb, ub, null, type, name);
+                model.Update();
+                GRBLinExpr[] bConds = new GRBLinExpr[nConstraints];
+                double[] bRhs = new double[nConstraints];
+                char[] bSenses = new char[nConstraints];
+                for (int i = 0; i < nConstraints; i++)
+                {
+                    bConds[i] = new GRBLinExpr();
+                    bRhs[i] = 0;
+                    bSenses[i] = GRB.EQUAL;
+                }
+                /*foreach (var e in jacobian.Elements)
+                {
+                    bConds[e.Row].AddTerm(e.Value, vars[e.Col]);
+                    bConds[e.Row].AddTerm(-1, bVars[e.Row]);
+                }*/
+                for (int i = 0; i < nConstraints; i++)
+                {
+                    for (int j = 0; j < nU * nV; j++)
+                    {
+                        if (jacobian[i, j] != 0)
+                        {
+                            bConds[i].AddTerm(jacobian[i, j], vars[j]);
+                            bConds[i].AddTerm(-1, bVars[i]);
+                        }
+                    }
+                }
+                //model.AddConstrs(bConds, bSenses, bRhs, null);
+                //model.AddConstr(bConds[10], bSenses[10], bRhs[10], null);
+                //Objective
+                /*GRBQuadExpr obj = new GRBQuadExpr();
+                for (int i = 0; i < nConstraints; i++)
+                {
+                    obj.AddTerm(1, bVars[i], bVars[i]);
+                }
+                model.SetObjective(obj);
+                */
                 model.Optimize();
                 switch (model.Get(GRB.IntAttr.Status))
                 {
@@ -245,13 +343,28 @@ namespace mikity.ghComponents
                         break;
 
                 }
-                //if ( == GRB.Status.OPTIMAL)
-                //{
-                    for (int j = 0; j < nU * nV; j++)
+                if ( model.Get(GRB.IntAttr.Status)== GRB.Status.OPTIMAL)
+                {
+                    double threshold = 1;
+                    for (int i = 0; i < nConstraints; i++)
                     {
-                        x[j,2] = vars[j].Get(GRB.DoubleAttr.X);
+                        double f=bVars[i].Get(GRB.DoubleAttr.X);
+                        if ( f< threshold)
+                        {
+                            lb[i]=0;
+                            ub[i]=0;
+                        }
                     }
-                //}
+                    model.Set(GRB.DoubleAttr.LB, bVars, lb);
+                    model.Set(GRB.DoubleAttr.UB, bVars, ub);
+                    model.Optimize();
+                }
+                for (int j = 0; j < nU * nV; j++)
+                {
+                    x[j,2] = vars[j].Get(GRB.DoubleAttr.X);
+                }
+                //model.Set(GRB.DoubleAttr.LB,
+                //GRB.set(model, GRB_DBL_ATTR_UB, var, 0.0);error = GRBsetdblattrelement(model, GRB_DBL_ATTR_UB, var, 0.0);error = GRBsetdblattrelement(model, GRB_DBL_ATTR_UB, var, 0.0);error = GRBsetdblattrelement(model, GRB_DBL_ATTR_UB, var, 0.0); error = GRBsetdblattrelement(model, GRB_DBL_ATTR_UB, var, 0.0);error = GRBsetdblattrelement(model, GRB_DBL_ATTR_UB, var, 0.0); error = GRBsetdblattrelement(model, GRB_DBL_ATTR_UB, var, 0.0); error = GRBsetdblattrelement(model, GRB_DBL_ATTR_UB, var, 0.0);error = GRBsetdblattrelement(model, GRB_DBL_ATTR_UB, var, 0.0);error = GRBsetdblattrelement(model, GRB_DBL_ATTR_UB, var, 0.0); error = GRBsetdblattrelement(model, GRB_DBL_ATTR_UB, var, 0.0); error = GRBsetdblattrelement(model, GRB_DBL_ATTR_UB, var, 0.0); error
                 model.Dispose();
                 env.Dispose();
 
@@ -262,24 +375,6 @@ namespace mikity.ghComponents
                 return;
             }
 
-            /*var mat = jacobian * jacobian.T as SparseDoubleArray;
-            var solver2 = new SparseLU(mat as SparseDoubleArray);
-            
-            
-            var dx2 = jacobian.T * solver2.Solve(residual);
-            for (int i = 0; i < nU * nV; i++)
-            {
-                x[i, 2] -= dx2[i, 0] * 1;
-            }
-            minZ = Double.MaxValue;
-            for (int i = 0; i < nU * nV; i++)
-            {
-                if (x[i, 2] < minZ) minZ = x[i, 2];
-            }
-            for (int i = 0; i < nU * nV; i++)
-            {
-                x[i, 2] -= minZ;
-            }*/
             x2Nurbs(x, airyNurbs);
             createAiryPoints(airyNurbs);
             myMasonry.setupNodesFromList(x);
@@ -401,7 +496,7 @@ namespace mikity.ghComponents
 
             foreach (var e in myMasonry.elemList)
             {
-                for(int i=0;i<e.nIntPoint;i++)
+                /*for(int i=0;i<e.nIntPoint;i++)
                 {
                     e.getEigenVectors(vec, val, i);
                     node=e.getIntPoint(i);
@@ -418,6 +513,25 @@ namespace mikity.ghComponents
                     else { color = System.Drawing.Color.Magenta; }
                     args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] + vec[1][0] * S2, node[1] + vec[1][1] * S2, node[2] + vec[1][2] * S2), color, 1);
                     args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] - vec[1][0] * S2, node[1] - vec[1][1] * S2, node[2] - vec[1][2] * S2), color, 1);
+                }*/
+                for(int i=0;i<e.nBIntPoint;i++)
+                {
+                    e.getBEigenVectors(vec, val, i);
+                    node = e.getBIntPoint(i);
+                    System.Drawing.Color color;
+                    double S1 = S * val[0];
+                    double S2 = S * val[1];
+                    if (val[0] > 0)
+                    { color = System.Drawing.Color.Cyan; }
+                    else { color = System.Drawing.Color.Magenta; }
+                    args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] + vec[0][0] * S1, node[1] + vec[0][1] * S1, node[2] + vec[0][2] * S1), color, 1);
+                    args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] - vec[0][0] * S1, node[1] - vec[0][1] * S1, node[2] - vec[0][2] * S1), color, 1);
+                    if (val[1] > 0)
+                    { color = System.Drawing.Color.Cyan; }
+                    else { color = System.Drawing.Color.Magenta; }
+                    args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] + vec[1][0] * S2, node[1] + vec[1][1] * S2, node[2] + vec[1][2] * S2), color, 1);
+                    args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] - vec[1][0] * S2, node[1] - vec[1][1] * S2, node[2] - vec[1][2] * S2), color, 1);
+
                 }
             }
             List<Rhino.Geometry.Point3d> xyP = new List<Point3d>();
@@ -577,7 +691,7 @@ namespace mikity.ghComponents
             }
             //Get Boundary
             boundaryIndex = new List<int>();
-            Rhino.Geometry.Polyline[] boundary = alternativeMesh.GetNakedEdges();
+            /*Rhino.Geometry.Polyline[] boundary = alternativeMesh.GetNakedEdges();
             
             foreach (var p in boundary)
             {
@@ -586,12 +700,12 @@ namespace mikity.ghComponents
                     var f = alternativeMesh.Vertices.Select((e,index)=>new{e,index}).Where(e=>e.e==p[i]).Select(e=>e.index).First();
                     boundaryIndex.Add(f);
                 }
-            }
-            /*boundaryIndex.Add(0);
+            }*/
+            boundaryIndex.Add(0);
             boundaryIndex.Add(nU-1);
             boundaryIndex.Add(nU * nV - 1-nU+1);
             boundaryIndex.Add(nU * nV - 1);
-            */
+            
             airyNurbs = S.Duplicate() as Rhino.Geometry.NurbsSurface;
             outputNurbs = S.Duplicate() as Rhino.Geometry.NurbsSurface;
             xyNurbs = S.Duplicate() as Rhino.Geometry.NurbsSurface;

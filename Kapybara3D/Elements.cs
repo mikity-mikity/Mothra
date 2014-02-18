@@ -17,7 +17,7 @@ namespace Minilla3D.Elements
         public int nIntPoint,nBIntPoint,nNode,elemDim,nDV;                
 		public Minilla3D.Elements.integratingPoint[] intP;     //Integrating points
         public Minilla3D.Elements.integratingPoint[] bIntP;     //Integrating Points on border
-        double[] node;							        //Nodal coordinate (global)
+        protected double[] node;							        //Nodal coordinate (global)
 		protected int[] index;                                    //indeces of the nodes
         double[] gradient;                              //internal force(equivalent nodal force of stress field)
         double[,] hess;                                 //Hessian  (Geometric Stiffness only)
@@ -61,14 +61,6 @@ namespace Minilla3D.Elements
 		{
             Array.Copy(_index,index,nNode);
 		}
-        public double[] getIntPoint(int i)
-        {
-            return intP[i].globalCoord;
-        }
-        public double[] getBIntPoint(int i)
-        {
-            return bIntP[i].globalCoord;
-        }
         public double[] getNode(int i)
 		{
 			return new double[3]{node[i*__DIM+0],node[i*__DIM+1],node[i*__DIM+2]};
@@ -128,6 +120,10 @@ namespace Minilla3D.Elements
             {
                 intP[i].computeEigenVectors();
             }
+            for (int i = 0; i < nBIntPoint; i++)
+            {
+                bIntP[i].computeEigenVectors();
+            }
         }
         public void getEigenVectors(double[][] vec, double[] val, int num)
         {
@@ -138,6 +134,24 @@ namespace Minilla3D.Elements
                 vec[i][2] = intP[num].eigenVectors[i][2];
                 val[i] = intP[num].eigenValues[i];
             }
+        }
+        public void getBEigenVectors(double[][] vec, double[] val, int num)
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                vec[i][0] = bIntP[num].eigenVectors[i][0];
+                vec[i][1] = bIntP[num].eigenVectors[i][1];
+                vec[i][2] = bIntP[num].eigenVectors[i][2];
+                val[i] = bIntP[num].eigenValues[i];
+            }
+        }
+        public double[] getIntPoint(int i)
+        {
+            return intP[i].globalCoord;
+        }
+        public double[] getBIntPoint(int i)
+        {
+            return bIntP[i].globalCoord;
         }
         public void computeGlobalCoord()
 		{

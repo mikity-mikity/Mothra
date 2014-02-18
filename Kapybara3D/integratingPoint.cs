@@ -108,9 +108,14 @@ namespace Minilla3D.Elements
             }
             return tmpGradient[i];
         }
-        public double getResidualOfBoundaryCondition(int i)
+        public double getResidualOfBoundaryCondition(double[] x,int i)
         {
-            return edge[0] * hessUV[0, i] + edge[1] * hessUV[1, i];            
+            double val = 0;
+            for (int j = 0; j < nNode; j++)
+            {
+                val += tmpGradient[i][j] * x[j * 3 + 2] ;
+            }
+            return val;
         }
         public void precompute(double[] x)
         {
@@ -186,35 +191,12 @@ namespace Minilla3D.Elements
                     double val = 0;
                     for (int i = 0; i < nNode; i++)
                     {
-                        val += D[n, m, 2, i * 3 + 2] * x[i * 3 + 2];
+                        val += gradient[n, m][i] * x[i * 3 + 2];
                     }
-                    hessUV[n, m]=val;
+                    hessUV[n, m] = val;
                 }
-            }
-            //covariant base vectors
-            for (int n = 0; n < 2; n++)
-            {
-                double fphi=0;
-                for (int i = 0; i < nDV; i++)
-                {
-                    fphi+= C[n, 2, i] * x[i];
-                }
-                f[n, 2] = fphi; //first order derivative of phi
             }
             double dv2 = dv * dv;
-            //Overrite hessuv with connection coefficients
-            for (int m = 0; m < 2; m++)
-            {
-                for (int n = 0; n < 2; n++)
-                {
-                    double val = 0;
-                    for (int k = 0; k < 2; k++)
-                    {
-                        val += Gamma[n, m, k] * f[k, 2];
-                    }
-                    hessUV[n, m] -= val;
-                }
-            }
             //Hodge star on curvelinear coordinate
             double temp = hessUV[1, 1];
             SPK[1, 1] = hessUV[0, 0] / dv2;
@@ -222,48 +204,6 @@ namespace Minilla3D.Elements
             SPK[0, 1] = -hessUV[0, 1] / dv2;
             SPK[1, 0] = -hessUV[1, 0] / dv2;
 
-
-            /*//Coordinate transformation
-            for (int i = 0; i < 2; i++)
-            {
-                for (int j = 0; j < 2; j++)
-                {
-                    double val = 0;
-                    for (int n = 0; n < 2; n++)
-                    {
-                        for (int m = 0; m < 2; m++)
-                        {
-                            val += hessUV[n, m] * F[n, i] * F[m, j];
-                        }
-                    }
-                    hessXY[i, j] = val;
-                }
-            }*/
-            //Hodge star?????
-            /*double temp = hessXY[1, 1];
-            hessXY[1, 1] = hessXY[0, 0];
-            hessXY[0, 0] = temp;
-            hessXY[0, 1] = -hessXY[0, 1];
-            hessXY[1, 0] = -hessXY[1, 0];
-            */
-            
-            
-            /*//Coordinate transformation again! ->SPK
-            for (int n = 0; n < 2; n++)
-            {
-                for (int m = 0; m < 2; m++)
-                {
-                    double val = 0;
-                    for (int i = 0; i < 2; i++)
-                    {
-                        for (int j = 0; j < 2; j++)
-                        {
-                            val += hessXY[i, j] * F[n, i] * F[m, j];
-                        }
-                    }
-                    SPK[n, m] = val;
-                }
-            }*/
 
         }
         public void computeGlobalCoord(double[] x)
