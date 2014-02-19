@@ -271,7 +271,8 @@ namespace Minilla3D.Elements
 
 					P12=l2-d;
 					P22=c;
-				}else if(b!=0)
+                }
+                else if (b!=0)
 				{
 					P11=b;
 					P21=l1-a;

@@ -144,13 +144,39 @@ namespace Minilla3D.Elements
         {
             return Factorial(N) / Factorial(N - k) / Factorial(k);
         }
-
+        bool exceptional()
+        {
+            if (this.typeOfBorder == (border.Left | border.Top))
+            {
+                return true;
+            }
+            if (this.typeOfBorder == (border.Left | border.Bottom))
+            {
+                return true;
+            }
+            if (this.typeOfBorder == (border.Right | border.Top))
+            {
+                return true;
+            }
+            if (this.typeOfBorder == (border.Right | border.Bottom))
+            {
+                return true;
+            }
+            return false;
+        }
         public int numberOfConstraintConditions()
         {
-            return nBIntPoint*2;
+            if (exceptional()) return 0;
+            return nBIntPoint * 2;
+        }
+        public int numberOfConstraintConditions2()
+        {
+            //if (exceptional()) return 0;
+            return nIntPoint * 3;
         }
         public int mergeResidual(ShoNS.Array.DoubleArray residual, int i)
         {
+            if (exceptional()) return i;
             for (int j = 0; j < nBIntPoint; j++)
             {
                 for (int k = 0; k < 2; k++)
@@ -163,6 +189,7 @@ namespace Minilla3D.Elements
         }
         public int mergeJacobian(ShoNS.Array.SparseDoubleArray jacobian, int i)
         {
+            if (exceptional()) return i;
             for (int j = 0; j < nBIntPoint; j++)
             {
                 for (int k = 0; k < 2; k++)
@@ -178,6 +205,7 @@ namespace Minilla3D.Elements
         }
         public int mergeJacobianOfCurvature(ShoNS.Array.SparseDoubleArray jacobH, int num)
         {
+            //if (exceptional()) return num;
             for (int i = 0; i < nIntPoint; i++)
             {
                 var grad = intP[i].getGradientOfH(0, 0);
@@ -381,8 +409,8 @@ namespace Minilla3D.Elements
         {
 
             this.typeOfBorder = _border;
-            int bVdim = _vDim + 0;
-            int bUdim = _uDim + 0;
+            int bVdim = _vDim +1;
+            int bUdim = _uDim +1;
             switch (_border)
             {
                 case border.Left | border.Top|border.Right:

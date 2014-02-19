@@ -58,9 +58,16 @@ namespace Minilla3D
             }
             public void computeEigenVectors()
             {
-                Parallel.ForEach(elemList, (e) =>
-                    e.computeEigenVectors()
-                    );
+                //Parallel.ForEach(elemList, (e) =>
+                 //   e.computeEigenVectors()
+                //    );
+
+                //foreach (var e in elemList)
+                for(int i=0;i<elemList.Count;i++)
+                {
+                    var e = elemList[i];
+                    e.computeEigenVectors();
+                }
             }
             public void setupNodesFromList(double[,] x)
             {
@@ -120,6 +127,24 @@ namespace Minilla3D
                 foreach (var e in elemList)
                 {
                     num += e.nIntPoint;
+                }
+                return num;
+            }
+            public int totalNumberOfBconst()
+            {
+                int num = 0;
+                foreach (var e in elemList)
+                {
+                    num += e.numberOfConstraintConditions();
+                }
+                return num;
+            }
+            public int totalNumberOfIconst()
+            {
+                int num = 0;
+                foreach (var e in elemList)
+                {
+                    num += e.numberOfConstraintConditions2();
                 }
                 return num;
             }
