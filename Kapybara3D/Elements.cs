@@ -12,6 +12,16 @@ namespace Minilla3D.Elements
         enum type{
             Cauchy,SPK
         };
+        [Flags]
+        public enum border
+        {
+            None = 0x00,
+            Left = 0x01,
+            Right = 0x02,
+            Top = 0x04,
+            Bottom = 0x08
+        }
+        public border typeOfBorder = border.None;
         type typeOfStress;
         protected const int __DIM=3;
         public int nIntPoint,nBIntPoint,nNode,elemDim,nDV;                
@@ -227,8 +237,41 @@ namespace Minilla3D.Elements
 				}
 			}
 		}
+        public void computeEdgeForce(double[,] Force)
+        {
 
-		public void computeGradient()
+            for (int i = 0; i < nDV; i++)
+            {
+                force[i] = 0;
+            }
+            if (typeOfBorder == border.None) return;
+            for (int i = 0; i < nBIntPoint; i++)
+            {
+                var p = bIntP[i];
+                p.computeEdgeForce();
+            }
+            //Gauss-Legendre integral
+            for (int i = 0; i < nBIntPoint; i++)
+            {
+                var p = bIntP[i];
+                for(int j=0;j<nDV;j++)
+                {
+                    force[j] += p.weight * p.Fx * p.N[0, j];
+                    force[j] += p.weight * p.Fy * p.N[1, j];
+                    force[j] += p.weight * p.Fz * p.N[2, j];
+                }
+            }
+            for (int i = 0; i < nNode; i++)
+            {
+                for (int k = 0; k < 3; k++)
+                {
+                    Force[index[i], 0] += force[i * 3 + 0];
+                    Force[index[i], 1] += force[i * 3 + 1];
+                    Force[index[i], 2] += force[i * 3 + 2];
+                }
+            }
+        }
+        public void computeGradient()
 		{
 			
 			for(int i=0;i<nDV;i++)

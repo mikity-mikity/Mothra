@@ -12,6 +12,7 @@ namespace Minilla3D.Elements
         int nNode,elemDim;
         int nDV;
         public double weight;
+        public double Fx, Fy, Fz;//Boundary force
 		public double[,] N;
         public double[,,]C;
         public double[, , ,] B;
@@ -218,6 +219,26 @@ namespace Minilla3D.Elements
 				this.globalCoord[i]=val;
 			}
 		}
+        public void computeEdgeForce()
+        {
+            Fx = 0;
+            Fy = 0;
+            Fz = 0;
+            hessUV[0, 0] = -SPK[1, 1];
+            hessUV[0, 1] = -SPK[0, 1];
+            hessUV[1, 0] = SPK[1, 0];
+            hessUV[1, 1] = SPK[0, 0];
+            for (int i = 0; i < 2; i++)//edge
+            {
+                for (int j = 0; j < 2; j++)//localcoordinate
+                {
+                    double val=edge[i] * refDv /*/ Math.Sqrt(metric[i, i])*/ * hessUV[i, j];
+                    Fx += val * f[j, 0];
+                    Fy += val * f[j, 1];
+                    Fz += val * f[j, 2];
+                }
+            }
+        }
 		public void computeBaseVectors(double[] x)
 		{
 			for(int i=0;i<elemDim;i++)
