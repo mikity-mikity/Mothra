@@ -35,6 +35,18 @@ namespace Minilla3D.Elements
         public double[][] tmpGradient =new double[3][];
         public double[,] tmpHessian;
         public double[] edge;
+        public double tension = 0;
+        public void giveTension(double t)
+        {
+            tension = t;
+            for(int i=0;i<elemDim;i++)
+            {
+                for (int j = 0; j < elemDim; j++)
+                {
+                    SPK[i, j] = t * invMetric[i, j];
+                }
+            }
+        }
         public double[,] SPK
         {
             protected set;
@@ -67,9 +79,9 @@ namespace Minilla3D.Elements
             localCoord=new double[elemDim];                 //Local coordinate
             globalCoord=new double[__DIM];                  //Global coordinate
             baseVectors = new double[elemDim, __DIM];       //covariant base vectors
-            Gamma = new double[2, 2, 2];  //Connection coefficient
-            F = new double[2, 2];                    //Transform matrix (u,v)->(x,y)
-            f = new double[2, 3];                           //Transform matrix (x,y)->(u,v)
+            Gamma = new double[elemDim, elemDim, elemDim];  //Connection coefficient
+            F = new double[elemDim, 2];                    //Transform matrix (u,v)->(x,y)
+            f = new double[elemDim, 3];                           //Transform matrix (x,y)->(u,v)
             hessUV = new double[elemDim, elemDim];          //hessian of airy function with respect to uv
             hessXY = new double[elemDim, elemDim];          //hessian of airy function with respect to xy
             eigenVectors=new double[2][]{new double[3],new double[3]};
@@ -81,14 +93,14 @@ namespace Minilla3D.Elements
             refInvMetric=new double[elemDim,elemDim];
             SPK = new double[elemDim, elemDim];
             Cauchy = new double[elemDim, elemDim];
-            gradient = new double[2,2][];
+            gradient = new double[elemDim, elemDim][];
             tmpGradient[0] = new double[nNode];
             tmpGradient[1] = new double[nNode];
             tmpGradient[2] = new double[nNode];
             tmpHessian = new double[nNode,nNode];
-            for (int i = 0; i < 2; i++)
+            for (int i = 0; i < elemDim; i++)
             {
-                for (int j = 0; j < 2; j++)
+                for (int j = 0; j < elemDim; j++)
                 {
                     gradient[i, j] = new double[nNode];
                 }
@@ -121,7 +133,7 @@ namespace Minilla3D.Elements
         public void precompute(double[] x)
         {
             //covariant base vectors
-            for (int n = 0; n < 2; n++)
+            for (int n = 0; n < elemDim; n++)
             {
                 double fx = 0, fy = 0;
                 for (int i = 0; i < nDV; i++)
@@ -133,31 +145,62 @@ namespace Minilla3D.Elements
                 f[n, 1] = fy;
                 f[n, 2] = 0;
             }
-            for (int n = 0; n < 2; n++)
+            for (int n = 0; n < elemDim; n++)
             {
-                for (int m = 0; m < 2; m++)
+                for (int m = 0; m < elemDim; m++)
                 {
                     metric[n, m] = f[n, 0] * f[m, 0] + f[n, 1] * f[m, 1];
                 }
             }
-            _inv2(metric, invMetric);
-            SPK[0, 0] = invMetric[0, 0];
-            SPK[0, 1] = invMetric[0, 1];
-            SPK[1, 0] = invMetric[1, 0];
-            SPK[1, 1] = invMetric[1, 1];
-            dv = Math.Sqrt(_det2(metric));
+            if (elemDim == 1)
+            {
+                _inv1(metric, invMetric);
+            }
+            else if (elemDim == 2)
+            {
+                _inv2(metric, invMetric);
+            }
+            else if (elemDim == 3)
+            {
+                _inv3(metric, invMetric);
+            }
+            /*for (int i = 0; i < elemDim; i++)
+            {
+                for (int j = 0; j < elemDim; j++)
+                {
+                    SPK[i, j] = invMetric[i, j];
+                }
+            }*/
+            if (elemDim == 1)
+            {
+                dv = Math.Sqrt(_det1(metric));
+            }
+            else if (elemDim == 2)
+            {
+                dv = Math.Sqrt(_det2(metric));
+            }
+            else if (elemDim == 3)
+            {
+                dv = Math.Sqrt(_det3(metric));
+            }
             refDv = dv;
             //contravatiant base vectors
-            for (int n = 0; n < 2; n++)
+            for (int n = 0; n < elemDim; n++)
             {
-                F[n, 0] = f[0, 0] * invMetric[0, n] + f[1, 0] * invMetric[1, n];
-                F[n, 1] = f[0, 1] * invMetric[0, n] + f[1, 1] * invMetric[1, n];
+                double Fx = 0, Fy = 0;
+                for (int m = 0; m < elemDim; m++)
+                {
+                    Fx += f[m, 0] * invMetric[m, n];
+                    Fy += f[m, 1] * invMetric[m, n];
+                }
+                F[n, 0] = Fx;
+                F[n, 1] = Fy;
             }
 
             //Connection coefficients
-            for (int n = 0; n < 2; n++)
+            for (int n = 0; n < elemDim; n++)
             {
-                for (int m = 0; m < 2; m++)
+                for (int m = 0; m < elemDim; m++)
                 {
                     double gx = 0, gy = 0;
                     for (int i = 0; i < nDV; i++)
@@ -172,13 +215,17 @@ namespace Minilla3D.Elements
                 }
             }
             //Create gradient of hessian with computed connection coefficients
-            for (int m = 0; m < 2; m++)
+            for (int m = 0; m < elemDim; m++)
             {
-                for (int n = 0; n < 2; n++)
+                for (int n = 0; n < elemDim; n++)
                 {
                     for (int k = 0; k < nNode; k++)
                     {
-                        gradient[m, n][k] = D[m, n, 2, k * __DIM + 2] - Gamma[m, n, 0] * C[0, 2, k * 3 + 2] - Gamma[m, n, 1] * C[1, 2, k * 3 + 2];
+                        gradient[m, n][k] = D[m, n, 2, k * __DIM + 2];
+                        for(int i=0;i<elemDim;i++)
+                        {
+                            gradient[m, n][k]-=Gamma[m, n, i] * C[i, 2, k * 3 + 2];
+                        }
                     }
                 }
             }

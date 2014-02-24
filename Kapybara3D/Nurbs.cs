@@ -159,8 +159,9 @@ namespace Minilla3D.Elements
             if (exceptional()) return 0;
             return nBIntPoint * 2;
         }
-        public int numberOfConstraintConditions2()
+        public int numberOfConstraintConditions2(bool T)
         {
+            if (T&&exceptional()) return 0;
             return nIntPoint * 3;
         }
         public int mergeResidual(ShoNS.Array.DoubleArray residual, int i)
@@ -192,8 +193,9 @@ namespace Minilla3D.Elements
             }
             return i + nBIntPoint * 2;
         }
-        public int mergeJacobianOfCurvature(ShoNS.Array.SparseDoubleArray jacobH, int num)
+        public int mergeJacobianOfCurvature(ShoNS.Array.SparseDoubleArray jacobH, int num,bool T)
         {
+            if (T&&exceptional()) return num;
             for (int i = 0; i < nIntPoint; i++)
             {
                 var grad = intP[i].getGradientOfH(0, 0);

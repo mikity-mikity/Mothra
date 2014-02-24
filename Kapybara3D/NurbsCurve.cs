@@ -156,12 +156,7 @@ namespace Minilla3D.Elements
         }
         public int numberOfConstraintConditions()
         {
-            if (exceptional()) return 0;
-            return nBIntPoint * 2;
-        }
-        public int numberOfConstraintConditions2()
-        {
-            return nIntPoint * 3;
+            return nIntPoint;
         }
         public int mergeResidual(ShoNS.Array.DoubleArray residual, int i)
         {
@@ -192,27 +187,17 @@ namespace Minilla3D.Elements
             }
             return i + nBIntPoint * 2;
         }
-        public int mergeJacobianOfCurvature(ShoNS.Array.SparseDoubleArray jacobH, int num)
+        public int mergeJacobianOfPosition(ShoNS.Array.SparseDoubleArray jacob, int num)
         {
             for (int i = 0; i < nIntPoint; i++)
             {
-                var grad = intP[i].getGradientOfH(0, 0);
-                for (int f = 0; f < nNode; f++)
+                var grad = intP[i].N;
+                for (int j = 0; j < nNode; j++)
                 {
-                    jacobH[num + i * 3 + 0, index[f]] = grad[f];
-                }
-                grad = intP[i].getGradientOfH(1, 1);
-                for (int f = 0; f < nNode; f++)
-                {
-                    jacobH[num + i * 3 + 1, index[f]] = grad[f];
-                }
-                grad = intP[i].getGradientOfH(0, 1);
-                for (int f = 0; f < nNode; f++)
-                {
-                    jacobH[num + i * 3 + 2, index[f]] = grad[f];
+                    jacob[num + i, index[j]] = grad[2, j * 3 + 2];
                 }
             }
-            return num + nIntPoint*3;
+            return num + nIntPoint;
         }
 
         double __cu(int n, int dim)

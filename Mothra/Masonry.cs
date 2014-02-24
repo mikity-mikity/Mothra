@@ -57,8 +57,8 @@ namespace mikity.ghComponents
 
         protected override void RegisterInputParams(Grasshopper.Kernel.GH_Component.GH_InputParamManager pManager)
         {
-            
             pManager.AddGenericParameter("Surface", "S", "inputSurface", Grasshopper.Kernel.GH_ParamAccess.item);
+            pManager.AddBooleanParameter("Boundary", "b", "Boundary", Grasshopper.Kernel.GH_ParamAccess.item);
         }
 
         protected override void RegisterOutputParams(Grasshopper.Kernel.GH_Component.GH_OutputParamManager pManager)
@@ -140,6 +140,7 @@ namespace mikity.ghComponents
             }
             return false;
         }
+        public Rhino.Geometry.Plane[] cuttingPlane=new Plane[4];
         public void update()
         {
             Nurbs2x(airyNurbs, x);
@@ -165,23 +166,22 @@ namespace mikity.ghComponents
             x2Nurbs(x, airyNurbs);
             myMasonry.setupNodesFromList(x);
             myMasonry.precompute();
-            int nConstraints2 = myMasonry.totalNumberOfIconst();
+            myMasonry.computeGlobalCoord();
+            int nConstraints2 = myMasonry.totalNumberOfIconst(boundary);
             int nConstraints = myMasonry.totalNumberOfBconst();
             ShoNS.Array.SparseDoubleArray jacobian = new SparseDoubleArray(nConstraints, nU * nV);
             ShoNS.Array.DoubleArray residual = new DoubleArray(nConstraints, 1);
             
             ShoNS.Array.SparseDoubleArray jacobianH = new SparseDoubleArray(nConstraints2, nU * nV);
-            myMasonry.GetJacobianOfCurvature(jacobianH);
-            //myMasonry.GetJacobianOfGaussianCurvature(jacobianK);
-
+            myMasonry.GetJacobianOfCurvature(jacobianH,boundary);
+            
             myMasonry.getJacobian(jacobian);
-            myMasonry.getResidual(residual);
-            System.Windows.Forms.MessageBox.Show(residual.Norm().ToString());
             
             try
             {
                 ////////////////////////////GUROBI///////////////////
                 GRBEnv env = new GRBEnv("qcp.log");
+                env.Set(GRB.IntParam.DualReductions, 0);
                 GRBModel model = new GRBModel(env);
                 double[] lb = new double[nU * nV];
                 double[] ub = new double[nU * nV];
@@ -192,24 +192,23 @@ namespace mikity.ghComponents
                 {
                     for (int i = 0; i < nU; i++, count++)
                     {
-                        lb[count] = 0;
+                        lb[count] = -GRB.INFINITY;
                         ub[count] = GRB.INFINITY;
                         type[count] = GRB.CONTINUOUS;
                         name[count] = "N[" + i.ToString("g") + "," + j.ToString("g") + "]";
                     }
                 }
-                lb[0] = 250;
-                ub[0] = 250;
-                lb[nU - 1] = 250;
-                ub[nU - 1] = 250;
-                lb[nU * nV - nU] = 250;
-                ub[nU * nV - nU] = 250;
-                lb[nU * nV - 1] = 250;
-                ub[nU * nV - 1] = 250;
+                lb[0] = 500;
+                ub[0] = 500;
+                lb[nU - 1] = 500;
+                ub[nU - 1] = 500;
+                lb[nU * nV - nU] = 500;
+                ub[nU * nV - nU] = 500;
+                lb[nU * nV - 1] = 500;
+                ub[nU * nV - 1] = 500;
                 
-
-                lb[(nU / 2) + (nV / 2) * nU] = 0;
-                ub[(nU / 2) + (nV / 2) * nU] = 0;
+                lb[(nU / 2) + (nV / 2) * nU-1] = 0;
+                ub[(nU / 2) + (nV / 2) * nU-1] = 0;
                 GRBVar[] vars = model.AddVars(lb, ub, null, type, name);
                 model.Update();
                 
@@ -225,7 +224,7 @@ namespace mikity.ghComponents
                     ub[j] = GRB.INFINITY;
                     type[j] = GRB.CONTINUOUS;
                     name[j] = "P" + j.ToString("g") + "-" + "phi_{0,0}";
-                    lb[j+1] = 0;
+                    lb[j + 1] = 0;
                     ub[j+1] = GRB.INFINITY;
                     type[j+1] = GRB.CONTINUOUS;
                     name[j+1] = "P" + j.ToString("g") + "-" + "phi_{1,1}";
@@ -259,7 +258,10 @@ namespace mikity.ghComponents
                     exprs[i].AddTerm(-1, phis[i]);
                 }
                 model.AddConstrs(exprs, senses, rhs, null);
-                
+
+                GRBQuadExpr obj = new GRBQuadExpr();
+
+                model.Update();
                 //Quadratic constraints  detH>0
                 for (int i = 0; i < nConstraints2; i+=3)
                 {
@@ -268,100 +270,338 @@ namespace mikity.ghComponents
                     model.AddQConstr(Qlhs, GRB.LESS_EQUAL, Qrhs, null);
                 }
                 
+                if (!boundary)
+                {
+                    //Boundary variable
+                    lb = new double[nConstraints];
+                    ub = new double[nConstraints];
+                    type = new char[nConstraints];
+                    name = new string[nConstraints];
+                    for (int j = 0; j < nConstraints; j++)
+                    {
+                        lb[j] = -100;// -GRB.INFINITY;
+                        ub[j] = 100;// GRB.INFINITY;
+                        type[j] = GRB.CONTINUOUS;
+                        name[j] = "B" + j.ToString("g");
+                    }
+                    GRBVar[] bVars = model.AddVars(lb, ub, null, type, name);
+                    model.Update();
+                    GRBLinExpr[] bConds = new GRBLinExpr[nConstraints];
+                    double[] bRhs = new double[nConstraints];
+                    char[] bSenses = new char[nConstraints];
+                    for (int i = 0; i < nConstraints; i++)
+                    {
+                        bConds[i] = new GRBLinExpr();
+                        bRhs[i] = 0;
+                        bSenses[i] = GRB.EQUAL;
+                    }
+                    for (int i = 0; i < nConstraints; i++)
+                    {
+                        for (int j = 0; j < nU * nV; j++)
+                        {
+                            if (jacobian[i, j] != 0)
+                            {
+                                bConds[i].AddTerm(jacobian[i, j], vars[j]);
+                            }
+                        }
+                        bConds[i].AddTerm(-1, bVars[i]);
+                    }
+                    model.AddConstrs(bConds, bSenses, bRhs, null);
+                    //Objective
+                    for (int i = 0; i < nConstraints; i++)
+                    {
+                        obj.AddTerm(1, bVars[i], bVars[i]);
+                    }
+                    model.SetObjective(obj);
+                    model.Optimize();
+                    switch (model.Get(GRB.IntAttr.Status))
+                    {
+                        case GRB.Status.OPTIMAL:
+                            //System.Windows.Forms.MessageBox.Show("Congraturation");
+                            break;
+                        case GRB.Status.UNBOUNDED:
+                            System.Windows.Forms.MessageBox.Show("UNBOUNDED");
+                            break;
+                        case GRB.Status.CUTOFF:
+                            System.Windows.Forms.MessageBox.Show("CUTOFF");
+                            break;
+                        case GRB.Status.INF_OR_UNBD:
+                            System.Windows.Forms.MessageBox.Show("INF_OR_UNBD");
+                            break;
+                        case GRB.Status.INFEASIBLE:
+                            System.Windows.Forms.MessageBox.Show("INFEASIBLE");
+                            break;
+                        case GRB.Status.INPROGRESS:
+                            System.Windows.Forms.MessageBox.Show("INPROGRESS");
+                            break;
+                        case GRB.Status.ITERATION_LIMIT:
+                            System.Windows.Forms.MessageBox.Show("ITERATION_LIMIT");
+                            break;
+                        case GRB.Status.INTERRUPTED:
+                            System.Windows.Forms.MessageBox.Show("INTERRUPTED");
+                            break;
+                        case GRB.Status.SUBOPTIMAL:
+                            System.Windows.Forms.MessageBox.Show("SUBOPTIMAL");
+                            break;
+                        case GRB.Status.SOLUTION_LIMIT:
+                            System.Windows.Forms.MessageBox.Show("SOLUTION_LIMIT");
+                            break;
+                        case GRB.Status.NODE_LIMIT:
+                            System.Windows.Forms.MessageBox.Show("NODE_LIMIT");
+                            break;
+                        default:
+                            System.Windows.Forms.MessageBox.Show("Something elese");
+                            break;
 
-
-                //Boundary variable
-                lb = new double[nConstraints];
-                ub = new double[nConstraints];
-                type = new char[nConstraints];
-                name = new string[nConstraints];
-                for (int j = 0; j < nConstraints; j++)
-                {
-                    lb[j] = -100;// -GRB.INFINITY;
-                    ub[j] = 100;// GRB.INFINITY;
-                    type[j] = GRB.CONTINUOUS;
-                    name[j] = "B" + j.ToString("g");
-                }
-                GRBVar[] bVars = model.AddVars(lb, ub, null, type, name);
-                model.Update();
-                GRBLinExpr[] bConds = new GRBLinExpr[nConstraints];
-                double[] bRhs = new double[nConstraints];
-                char[] bSenses = new char[nConstraints];
-                for (int i = 0; i < nConstraints; i++)
-                {
-                    bConds[i] = new GRBLinExpr();
-                    bRhs[i] = 0;
-                    bSenses[i] = GRB.EQUAL;
-                }
-                for (int i = 0; i < nConstraints; i++)
-                {
+                    }
                     for (int j = 0; j < nU * nV; j++)
                     {
-                        if (jacobian[i, j] != 0)
+                        x[j, 2] = vars[j].Get(GRB.DoubleAttr.X);
+                    }
+                }
+                else
+                {
+                    //Plane variables
+                    GRBVar[][] planeVars = new GRBVar[4][];
+                    for (int n = 0; n < 4; n++)
+                    {
+                        //z(x,y)=-D-Ax-By
+                        type = new char[3];
+                        name = new string[3];
+                        lb = new double[3];
+                        ub=new double[3];
+                        for (int i = 0; i < 3; i++)
                         {
-                            bConds[i].AddTerm(jacobian[i, j], vars[j]);
+                            type[i] = GRB.CONTINUOUS;
+                            lb[i] = -GRB.INFINITY;
+                            ub[i] = GRB.INFINITY;
+                        }
+                        name[0] = "A" + n.ToString("g");
+                        name[1] = "B" + n.ToString("g");
+                        name[2] = "D" + n.ToString("g");
+                        planeVars[n] = model.AddVars(lb,ub, null, type, name);
+                    }
+                    model.Update();
+                    //GRBQuadExpr obj = new GRBQuadExpr();
+
+                    //Coordinate variables of border integratingpoints
+                    var borderVars = new List<GRBVar>[4];
+                    var slackVars = new List<GRBVar>[4];
+                    borderVars[0] = new List<GRBVar>();
+                    borderVars[1] = new List<GRBVar>();
+                    borderVars[2] = new List<GRBVar>();
+                    borderVars[3] = new List<GRBVar>();
+                    slackVars[0] = new List<GRBVar>();
+                    slackVars[1] = new List<GRBVar>();
+                    slackVars[2] = new List<GRBVar>();
+                    slackVars[3] = new List<GRBVar>();
+                    var tE = myMasonry.topEdge;
+                    var lE = myMasonry.leftEdge;
+                    var rE = myMasonry.rightEdge;
+                    var bE = myMasonry.bottomEdge;
+                    nConstraints=myMasonry.totalNumbrOfTopEdgeIntPoint();
+                    jacobian = new SparseDoubleArray(nConstraints, nU * nV);
+                    myMasonry.GetJacobianOfTopEdge(jacobian);
+                    count=0;
+                    for (int i = 0; i < tE.Count; i++)
+                    {
+                        var e = tE[i];
+                        for (int j = 0; j < e.nIntPoint; j++,count++)
+                        {
+                            borderVars[0].Add(model.AddVar(-GRB.INFINITY, GRB.INFINITY, 0, GRB.CONTINUOUS, "topZ" + i.ToString() + "," + j.ToString()));
+                            slackVars[0].Add(model.AddVar(-GRB.INFINITY,GRB.INFINITY,0,GRB.CONTINUOUS,"slack"));
+                            model.Update();
+                            var con = new GRBLinExpr();
+                            var node=e.getIntPoint(j);
+                            con.AddTerm(1, borderVars[0][count]);   //z
+                            con.AddTerm(1, planeVars[0][2]);        //D
+                            con.AddTerm(node[0], planeVars[0][0]);  //Ax
+                            con.AddTerm(node[1], planeVars[0][1]);  //By
+                            model.AddConstr(con, GRB.EQUAL, 0, null);
+                            
+                            var con2 = new GRBLinExpr();
+                            con2.AddTerm(-1, slackVars[0][count]);
+                            for (int k = 0; k < nU * nV; k++)
+                            {
+                                if (jacobian[count, k] != 0)
+                                {
+                                    con2.AddTerm(jacobian[count, k], vars[k]);
+                                }
+                            }
+                            model.AddConstr(con2, GRB.EQUAL, 0, null);
+                            obj.AddTerm(1, slackVars[0][count], slackVars[0][count]);
+                            obj.AddTerm(-2, slackVars[0][count], borderVars[0][count]);
+                            obj.AddTerm(1, borderVars[0][count], borderVars[0][count]);
                         }
                     }
-                    bConds[i].AddTerm(-1, bVars[i]);
-                }
-                
-                //model.AddConstrs(bConds, bSenses, bRhs, null);
-                //Objective
-                GRBQuadExpr obj = new GRBQuadExpr();
-                for (int i = 0; i < nConstraints; i++)
-                {
-                    obj.AddTerm(1, bVars[i], bVars[i]);
-                }
-                model.SetObjective(obj);
-                
-                model.Optimize();
-                switch (model.Get(GRB.IntAttr.Status))
-                {
-                    case GRB.Status.OPTIMAL:
-                        System.Windows.Forms.MessageBox.Show("Congraturation");
-                        break;
-                    case GRB.Status.UNBOUNDED:
-                        System.Windows.Forms.MessageBox.Show("UNBOUNDED");
-                        break;
-                    case GRB.Status.CUTOFF:
-                        System.Windows.Forms.MessageBox.Show("CUTOFF");
-                        break;
-                    case GRB.Status.INF_OR_UNBD:
-                        System.Windows.Forms.MessageBox.Show("INF_OR_UNBD");
-                        break;
-                    case GRB.Status.INFEASIBLE:
-                        System.Windows.Forms.MessageBox.Show("INFEASIBLE");
-                        break;
-                    case GRB.Status.INPROGRESS:
-                        System.Windows.Forms.MessageBox.Show("INPROGRESS");
-                        break;
-                    case GRB.Status.ITERATION_LIMIT:
-                        System.Windows.Forms.MessageBox.Show("ITERATION_LIMIT");
-                        break;
-                    case GRB.Status.INTERRUPTED:
-                        System.Windows.Forms.MessageBox.Show("INTERRUPTED");
-                        break;
-                    case GRB.Status.SUBOPTIMAL:
-                        System.Windows.Forms.MessageBox.Show("SUBOPTIMAL");
-                        break;
-                    case GRB.Status.SOLUTION_LIMIT:
-                        System.Windows.Forms.MessageBox.Show("SOLUTION_LIMIT");
-                        break;
-                    case GRB.Status.NODE_LIMIT:
-                        System.Windows.Forms.MessageBox.Show("NODE_LIMIT");
-                        break;                    
-                    default:
-                        System.Windows.Forms.MessageBox.Show("Something elese");
-                        break;
+                    
+                    nConstraints = myMasonry.totalNumbrOfBottomEdgeIntPoint();
+                    jacobian = new SparseDoubleArray(nConstraints, nU * nV);
+                    myMasonry.GetJacobianOfBottomEdge(jacobian);
+                    count = 0;
+                    for (int i = 0; i < bE.Count; i++)
+                    {
+                        var e = bE[i];
+                        for (int j = 0; j < e.nIntPoint; j++, count++)
+                        {
+                            borderVars[1].Add(model.AddVar(-GRB.INFINITY, GRB.INFINITY, 0, GRB.CONTINUOUS, "topZ" + i.ToString() + "," + j.ToString()));
+                            slackVars[1].Add(model.AddVar(-GRB.INFINITY,GRB.INFINITY,0,GRB.CONTINUOUS,"slack"));
+                            model.Update();
+                            var con = new GRBLinExpr();
+                            var node=e.getIntPoint(j);
+                            con.AddTerm(1, borderVars[1][count]);   //z
+                            con.AddTerm(1, planeVars[1][2]);        //D
+                            con.AddTerm(node[0], planeVars[1][0]);  //Ax
+                            con.AddTerm(node[1], planeVars[1][1]);  //By
+                            model.AddConstr(con, GRB.EQUAL, 0, null);
+                            
+                            var con2 = new GRBLinExpr();
+                            con2.AddTerm(-1, slackVars[1][count]);
+                            for (int k = 0; k < nU * nV; k++)
+                            {
+                                if (jacobian[count, k] != 0)
+                                {
+                                    con2.AddTerm(jacobian[count, k], vars[k]);
+                                }
+                            }
+                            model.AddConstr(con2, GRB.EQUAL, 0, null);
+                            obj.AddTerm(1, slackVars[1][count], slackVars[1][count]);
+                            obj.AddTerm(-2, slackVars[1][count], borderVars[1][count]);
+                            obj.AddTerm(1, borderVars[1][count], borderVars[1][count]);
+                        }
+                    }
+                    
+                    nConstraints = myMasonry.totalNumbrOfLeftEdgeIntPoint();
+                    jacobian = new SparseDoubleArray(nConstraints, nU * nV);
+                    myMasonry.GetJacobianOfLeftEdge(jacobian);
+                    count = 0;
+                    for (int i = 0; i < lE.Count; i++)
+                    {
+                        var e = lE[i];
+                        for (int j = 0; j < e.nIntPoint; j++, count++)
+                        {
+                            borderVars[2].Add(model.AddVar(-GRB.INFINITY, GRB.INFINITY, 0, GRB.CONTINUOUS, "topZ" + i.ToString() + "," + j.ToString()));
+                            slackVars[2].Add(model.AddVar(-GRB.INFINITY,GRB.INFINITY,0,GRB.CONTINUOUS,"slack"));
+                            model.Update();
+                            var con = new GRBLinExpr();
+                            var node=e.getIntPoint(j);
+                            con.AddTerm(1, borderVars[2][count]);   //z
+                            con.AddTerm(1, planeVars[2][2]);        //D
+                            con.AddTerm(node[0], planeVars[2][0]);  //Ax
+                            con.AddTerm(node[1], planeVars[2][1]);  //By
+                            model.AddConstr(con, GRB.EQUAL, 0, null);
+                            
+                            var con2 = new GRBLinExpr();
+                            con2.AddTerm(-1, slackVars[2][count]);
+                            for (int k = 0; k < nU * nV; k++)
+                            {
+                                if (jacobian[count, k] != 0)
+                                {
+                                    con2.AddTerm(jacobian[count, k], vars[k]);
+                                }
+                            }
+                            model.AddConstr(con2, GRB.EQUAL, 0, null);
+                            obj.AddTerm(1, slackVars[2][count], slackVars[2][count]);
+                            obj.AddTerm(-2, slackVars[2][count], borderVars[2][count]);
+                            obj.AddTerm(1, borderVars[2][count], borderVars[2][count]);
+                        }
+                    }
+                    
+                    
+                    nConstraints = myMasonry.totalNumbrOfRightEdgeIntPoint();
+                    jacobian = new SparseDoubleArray(nConstraints, nU * nV);
+                    myMasonry.GetJacobianOfRightEdge(jacobian);
+                    count = 0;
+                    for (int i = 0; i < rE.Count; i++)
+                    {
+                        var e = rE[i];
+                        for (int j = 0; j < e.nIntPoint; j++, count++)
+                        {
+                            borderVars[3].Add(model.AddVar(-GRB.INFINITY, GRB.INFINITY, 0, GRB.CONTINUOUS, "topZ" + i.ToString() + "," + j.ToString()));
+                            slackVars[3].Add(model.AddVar(-GRB.INFINITY,GRB.INFINITY,0,GRB.CONTINUOUS,"slack"));
+                            model.Update();
+                            var con = new GRBLinExpr();
+                            var node=e.getIntPoint(j);
+                            con.AddTerm(1, borderVars[3][count]);   //z
+                            con.AddTerm(1, planeVars[3][2]);        //D
+                            con.AddTerm(node[0], planeVars[3][0]);  //Ax
+                            con.AddTerm(node[1], planeVars[3][1]);  //By
+                            model.AddConstr(con, GRB.EQUAL, 0, null);
+                            
+                            var con2 = new GRBLinExpr();
+                            con2.AddTerm(-1, slackVars[3][count]);
+                            for (int k = 0; k < nU * nV; k++)
+                            {
+                                if (jacobian[count, k] != 0)
+                                {
+                                    con2.AddTerm(jacobian[count, k], vars[k]);
+                                }
+                            }
+                            model.AddConstr(con2, GRB.EQUAL, 0, null);
+                            obj.AddTerm(1, slackVars[3][count], slackVars[3][count]);
+                            obj.AddTerm(-2, slackVars[3][count], borderVars[3][count]);
+                            obj.AddTerm(1, borderVars[3][count], borderVars[3][count]);
 
+                        }
+                    }
+                    
+                    //Quadratic constraints  detH>0
+                    
+                    model.SetObjective(obj);
+                    
+                    model.Optimize();
+                    switch (model.Get(GRB.IntAttr.Status))
+                    {
+                        case GRB.Status.OPTIMAL:
+                            //
+                            break;
+                        case GRB.Status.UNBOUNDED:
+                            System.Windows.Forms.MessageBox.Show("UNBOUNDED");
+                            break;
+                        case GRB.Status.CUTOFF:
+                            System.Windows.Forms.MessageBox.Show("CUTOFF");
+                            break;
+                        case GRB.Status.INF_OR_UNBD:
+                            System.Windows.Forms.MessageBox.Show("INF_OR_UNBD");
+                            break;
+                        case GRB.Status.INFEASIBLE:
+                            System.Windows.Forms.MessageBox.Show("INFEASIBLE");
+                            break;
+                        case GRB.Status.INPROGRESS:
+                            System.Windows.Forms.MessageBox.Show("INPROGRESS");
+                            break;
+                        case GRB.Status.ITERATION_LIMIT:
+                            System.Windows.Forms.MessageBox.Show("ITERATION_LIMIT");
+                            break;
+                        case GRB.Status.INTERRUPTED:
+                            System.Windows.Forms.MessageBox.Show("INTERRUPTED");
+                            break;
+                        case GRB.Status.SUBOPTIMAL:
+                            System.Windows.Forms.MessageBox.Show("SUBOPTIMAL");
+                            break;
+                        case GRB.Status.SOLUTION_LIMIT:
+                            System.Windows.Forms.MessageBox.Show("SOLUTION_LIMIT");
+                            break;
+                        case GRB.Status.NODE_LIMIT:
+                            System.Windows.Forms.MessageBox.Show("NODE_LIMIT");
+                            break;
+                        default:
+                            System.Windows.Forms.MessageBox.Show("Something elese");
+                            break;
+
+                    }
+                    for (int j = 0; j < nU * nV; j++)
+                    {
+                        x[j, 2] = vars[j].Get(GRB.DoubleAttr.X);
+                    }
+                    for (int i = 0; i < 4; i++)
+                    {
+                        double AA = planeVars[i][0].Get(GRB.DoubleAttr.X);
+                        double BB = planeVars[i][1].Get(GRB.DoubleAttr.X);
+                        double DD = planeVars[i][2].Get(GRB.DoubleAttr.X);
+                        cuttingPlane[i] = new Plane(AA, BB, 1.0, -DD);
+                    }
                 }
-                for (int j = 0; j < nU * nV; j++)
-                {
-                    x[j, 2] = vars[j].Get(GRB.DoubleAttr.X);
-                }
-                //model.Set(GRB.DoubleAttr.LB, bVars, lb);
-                //model.Set(GRB.DoubleAttr.UB, bVars, ub);
-                //model.Optimize();
                 model.Dispose();
                 env.Dispose();
 
@@ -374,9 +614,8 @@ namespace mikity.ghComponents
             x2Nurbs(x, airyNurbs);
             createAiryPoints(airyNurbs);
             myMasonry.setupNodesFromList(x);
+            myMasonry.precompute();
             myMasonry.computeAiryFunction();
-            myMasonry.getResidual(residual);
-            System.Windows.Forms.MessageBox.Show(residual.Norm().ToString());
             Force = new double[nU * nV, 3];
             //myMasonry.computeEdgeForce(Force);
 
@@ -386,6 +625,7 @@ namespace mikity.ghComponents
             myMasonry.setupNodesFromList(x);
             myMasonry.computeGlobalCoord();
             ShoNS.Array.SparseDoubleArray hess = new SparseDoubleArray(nU * nV * 3, nU * nV * 3);
+            //myMasonry.giveEdgeTension(1);
             myMasonry.computeHessian();
             myMasonry.getHessian(hess);
             Nurbs2x(outputNurbs, x);
@@ -396,7 +636,7 @@ namespace mikity.ghComponents
             {
                 origX[i * 3 + 0, 0] = x[i, 0];
                 origX[i * 3 + 1, 0] = x[i, 1];
-                origX[i * 3 + 2, 0] = x[i, 2];
+                origX[i * 3 + 2, 0] = -200;// x[i, 2];
             }
             List<int> shift = new List<int>();
             int T1 = 0;
@@ -450,9 +690,9 @@ namespace mikity.ghComponents
             var force = DoubleArray.Zeros(nParticles * 3, 1);
             for(int i=0;i<nParticles;i++)
             {
-                force[i * 3 + 0, 0] = 0; // Force[i, 0] / 2.5;
-                force[i * 3 + 1, 0] = 0; // Force[i, 1] / 2.5;
-                force[i * 3 + 2, 0] = 0; // Force[i, 2] / 2.5;
+                force[i * 3 + 0, 0] = 0;
+                force[i * 3 + 1, 0] = 0;
+                force[i * 3 + 2, 0] = 0;
             }
             force = (shiftArray.T*force).GetSlice(0, T1, 0, 0);
             B = B + force;
@@ -475,7 +715,7 @@ namespace mikity.ghComponents
                 double Fy = F[i * 3 + 1, 0];
                 double Fz = F[i * 3 + 2, 0];
 
-                if ((Fx * Fx + Fy * Fy + Fz * Fz) > 0.01)
+                if (/*!boundary&&*/(Fx * Fx + Fy * Fy + Fz * Fz) >0.0001/* 0.01*/)
                 {
                     F[i * 3 + 0, 0] = Fx;
                     F[i * 3 + 1, 0] = Fy;
@@ -494,7 +734,7 @@ namespace mikity.ghComponents
                     Force[i, 2] = 0;
                 }
             }
-            
+            /*
             
             origX = DoubleArray.Zeros(nParticles * 3, 1);
             for (int i = 0; i < nParticles; i++)
@@ -552,7 +792,6 @@ namespace mikity.ghComponents
             origX = shiftArray.T * origX;
             fixX = origX.GetSlice(T1 + 1, T2, 0, 0);
             B = -DIB * fixX;
-            
             force = (shiftArray.T * F).GetSlice(0, T1, 0, 0);
             B = B + force;
             dx = solver.Solve(B);
@@ -570,7 +809,7 @@ namespace mikity.ghComponents
             
 
             
-            
+            */
             for (int i = 0; i < nParticles; i++)
             {   
                 x[i, 0] = xx[i * 3, 0];
@@ -589,6 +828,11 @@ namespace mikity.ghComponents
             a2.LayerIndex = 2;
             Guid id2 = doc.Objects.AddSurface(outputNurbs, a2);
             obj_ids.Add(id2);
+            for (int i = 0; i < 4; i++)
+            {
+                Guid id3 = doc.Objects.AddCircle(new Circle(cuttingPlane[i], 30));
+                obj_ids.Add(id3);
+            }
             base.BakeGeometry(doc, att, obj_ids);
         }
         public override void DrawViewportWires(Grasshopper.Kernel.IGH_PreviewArgs args)
@@ -597,7 +841,31 @@ namespace mikity.ghComponents
             {
                 return;
             }
-
+            for (int i = 0; i < 4; i++)
+            {
+                if (cuttingPlane[i] != null)
+                {
+                    var P1 = cuttingPlane[i].PointAt(-10, -10);
+                    var P2 = cuttingPlane[i].PointAt(10, -10);
+                    var P3 = cuttingPlane[i].PointAt(10, 10);
+                    var P4 = cuttingPlane[i].PointAt(-10, 10);
+                    args.Display.DrawLine(P1, P2, System.Drawing.Color.LightCoral, 2);
+                    args.Display.DrawLine(P2, P3, System.Drawing.Color.LightCoral, 2);
+                    args.Display.DrawLine(P3, P4, System.Drawing.Color.LightCoral, 2);
+                    args.Display.DrawLine(P4, P1, System.Drawing.Color.LightCoral, 2);
+                }
+            }
+            if (boundary)
+            {
+                var f = outputNurbs.IsoCurve(0, 0);
+                var g = outputNurbs.IsoCurve(1, 0);
+                var h = outputNurbs.IsoCurve(1, outputNurbs.Domain(0).Max);
+                var c = outputNurbs.IsoCurve(0, outputNurbs.Domain(1).Max);
+                args.Display.DrawCurve(f, System.Drawing.Color.Orange, 4);
+                args.Display.DrawCurve(g, System.Drawing.Color.Orange, 4);
+                args.Display.DrawCurve(h, System.Drawing.Color.Orange, 4);
+                args.Display.DrawCurve(c, System.Drawing.Color.Orange, 4);
+            }
             args.Display.DrawSurface(airyNurbs, System.Drawing.Color.Blue, 1);
             args.Display.DrawSurface(outputNurbs, System.Drawing.Color.Red, 1);
             args.Display.DrawSurface(xyNurbs, System.Drawing.Color.Green, 1);
@@ -664,13 +932,29 @@ namespace mikity.ghComponents
                     xyP.Add(d2);
                     args.Display.DrawPoint(d2, Rhino.Display.PointStyle.ControlPoint, 2, System.Drawing.Color.Red);
                 }
-                for (int i = 0; i < e.nBIntPoint; i++)
+                if (!boundary)
                 {
-                    var d = e.getBIntPoint(i);
-                    var d2 = new Rhino.Geometry.Point3d(d[0], d[1], d[2]);
-                    args.Display.DrawPoint(d2, Rhino.Display.PointStyle.X, 2, System.Drawing.Color.Red);
+
+                    for (int i = 0; i < e.nBIntPoint; i++)
+                    {
+                        var d = e.getBIntPoint(i);
+                        var d2 = new Rhino.Geometry.Point3d(d[0], d[1], d[2]);
+                        args.Display.DrawPoint(d2, Rhino.Display.PointStyle.X, 2, System.Drawing.Color.Red);
+                    }
+                }                
+            }
+            if (boundary)
+            {
+                foreach (var e in myMasonry.topEdge)
+                {
+                    for (int i = 0; i < e.nIntPoint; i++)
+                    {
+                        var d = e.getIntPoint(i);
+                        var d2 = new Rhino.Geometry.Point3d(d[0], d[1], d[2]);
+                        outputP.Add(d2);
+                        args.Display.DrawPoint(d2, Rhino.Display.PointStyle.X, 2, System.Drawing.Color.Green);
+                    }
                 }
-                
             }
             Nurbs2x(outputNurbs, x);
             myMasonry.setupNodesFromList(x);
@@ -685,14 +969,17 @@ namespace mikity.ghComponents
                     args.Display.DrawPoint(d2, Rhino.Display.PointStyle.ControlPoint, 2, System.Drawing.Color.Red);
                 }
             }
-            foreach (var e in myMasonry.edgeList)
+            if (boundary)
             {
-                for (int i = 0; i < e.nIntPoint; i++)
+                foreach (var e in myMasonry.edgeList)
                 {
-                    var d = e.getIntPoint(i);
-                    var d2 = new Rhino.Geometry.Point3d(d[0], d[1], d[2]);
-                    outputP.Add(d2);
-                    args.Display.DrawPoint(d2, Rhino.Display.PointStyle.X, 5, System.Drawing.Color.Purple);
+                    for (int i = 0; i < e.nIntPoint; i++)
+                    {
+                        var d = e.getIntPoint(i);
+                        var d2 = new Rhino.Geometry.Point3d(d[0], d[1], d[2]);
+                        outputP.Add(d2);
+                        args.Display.DrawPoint(d2, Rhino.Display.PointStyle.X, 2, System.Drawing.Color.Green);
+                    }
                 }
             }
             args.Display.DrawPoint(outputNurbs.Points.GetControlPoint(0, 0).Location, Rhino.Display.PointStyle.X, 2, System.Drawing.Color.Red);
@@ -713,10 +1000,12 @@ namespace mikity.ghComponents
             }
             base.DrawViewportWires(args);
         }
+        bool boundary = false;
         protected override void SolveInstance(Grasshopper.Kernel.IGH_DataAccess DA)
         {
             Object inputGeometry = null;
             if (!DA.GetData(0, ref inputGeometry)) { return; }
+            if (!DA.GetData(1, ref boundary)) { boundary = false; }
             if (inputGeometry is Grasshopper.Kernel.Types.GH_Surface)
             {
                 inputNurbs = (inputGeometry as Grasshopper.Kernel.Types.GH_Surface).Value.Surfaces[0].ToNurbsSurface();
@@ -919,43 +1208,63 @@ namespace mikity.ghComponents
                     if (j == 1)
                     {
                         border = border | Minilla3D.Elements.nurbsElement.border.Top;
-                        int[] index2 = new int[uDim];
-                        for (int l = 0; l < uDim; l++)
+                        //if (i != nU - uDdim)
                         {
-                            index2[l] = (j - 1) * nU + i - 1 + l;
+                            int[] index2 = new int[uDim];
+                            for (int l = 0; l < uDim; l++)
+                            {
+                                index2[l] = (j - 1) * nU + i - 1 + l;
+                            }
+                            var c = new Minilla3D.Elements.nurbsCurve(uDim, index2, i, uKnot);
+                            myMasonry.edgeList.Add(c);
+                            myMasonry.topEdge.Add(c);
                         }
-                        myMasonry.edgeList.Add(new Minilla3D.Elements.nurbsCurve(uDim, index2, i, uKnot));
                     }
                     if (i == 1)
                     {
                         border = border | Minilla3D.Elements.nurbsElement.border.Left;
-                        int[] index2 = new int[vDim];
-                        for (int k = 0; k < vDim; k++)
+                        //if (j != nV - vDdim)
                         {
-                            index2[k] = (j - 1 + k) * nU + i - 1;
+                            int[] index2 = new int[vDim];
+                            for (int k = 0; k < vDim; k++)
+                            {
+                                index2[k] = (j - 1 + k) * nU + i - 1;
+                            }
+                            var c = new Minilla3D.Elements.nurbsCurve(vDim, index2, j, vKnot);
+                            myMasonry.edgeList.Add(c);
+                            myMasonry.leftEdge.Add(c);
                         }
-                        myMasonry.edgeList.Add(new Minilla3D.Elements.nurbsCurve(vDim, index2, j, vKnot));
                     }
                     if (j == nV - vDdim)
                     {
                         border = border | Minilla3D.Elements.nurbsElement.border.Bottom;
-                        int[] index2 = new int[uDim];
-                        for (int l = 0; l < uDim; l++)
+                        //if (i != 1)
                         {
-                            index2[l] = (j - 1 + (vDim-1)) * nU + i - 1 + l;
+                            int[] index2 = new int[uDim];
+                            for (int l = 0; l < uDim; l++)
+                            {
+                                index2[l] = (j - 1 + (vDim - 1)) * nU + i - 1 + l;
+                            }
+                            var c = new Minilla3D.Elements.nurbsCurve(uDim, index2, i, uKnot);
+                            myMasonry.edgeList.Add(c);
+                            myMasonry.bottomEdge.Add(c);
                         }
-                        myMasonry.edgeList.Add(new Minilla3D.Elements.nurbsCurve(uDim, index2, i, uKnot));
                     }
                     if (i == nU - uDdim)
                     {
                         border = border | Minilla3D.Elements.nurbsElement.border.Right;
-                        int[] index2 = new int[vDim];
-                        for (int k = 0; k < vDim; k++)
+                        //if (j != 1)
                         {
-                            index2[k] = (j - 1 + k) * nU + i - 1 + uDim-1;
-                            
+                            int[] index2 = new int[vDim];
+                            for (int k = 0; k < vDim; k++)
+                            {
+                                index2[k] = (j - 1 + k) * nU + i - 1 + uDim - 1;
+
+                            }
+                            var c = new Minilla3D.Elements.nurbsCurve(vDim, index2, j, vKnot);
+                            myMasonry.edgeList.Add(c);
+                            myMasonry.rightEdge.Add(c);
                         }
-                        myMasonry.edgeList.Add(new Minilla3D.Elements.nurbsCurve(vDim, index2, j, vKnot));
                     }
                     myMasonry.elemList.Add(new Minilla3D.Elements.nurbsElement(uDim, vDim, index, i, j, uKnot, vKnot, border));
                 }

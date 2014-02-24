@@ -30,9 +30,15 @@ namespace Minilla3D.Elements
         protected double[] node;							        //Nodal coordinate (global)
 		protected int[] index;                                    //indeces of the nodes
         double[] gradient;                              //internal force(equivalent nodal force of stress field)
-        double[,] hess;                                 //Hessian  (Geometric Stiffness only)
+        protected double[,] hess;                                 //Hessian  (Geometric Stiffness only)
         double[] force;                                 //external force(equivalent nodal force of gravity)
-		
+        public void giveTension(double t)
+        {
+            foreach (var p in intP)
+            {
+                p.giveTension(t);
+            }
+        }
 		public element(int _nNode,int _elemDim,int _nIntPoint)
 		{
             var _index=new int[nDV];
@@ -208,7 +214,7 @@ namespace Minilla3D.Elements
 				intP[i].memoryMetric();
 			}
 		}
-		public void computeHessian()
+		public virtual void computeHessian()
 		{
 			for(int i=0;i<nDV;i++)
 			{
@@ -322,45 +328,6 @@ namespace Minilla3D.Elements
 			    }
             }
 		}
-		/*virtual void copyGradient(double* ptr,int DOF)
-		{
-			for(int i=0;i<DOF;i++)
-			{
-				ptr[i]=gradient[i];
-			}
-		}
-		virtual void copyGlobalCoord(double* ptr,int num)
-		{
-			memcpy(ptr,intP[num].globalCoord,sizeof(double)*__DIM);
-		}
-		virtual void copyBaseVectors(double* ptr,int num)
-		{
-			memcpy(ptr,intP[num].baseVectors,sizeof(double)*__DIM*_elemDim);
-
-		}
-		virtual double copyEigenVectors(double* ptr,double* ptr2, int num)
-		{
-			memcpy(ptr,intP[num].eigenVectors,sizeof(double)*__DIM*_elemDim);
-			memcpy(ptr2,intP[num].eigenValues,sizeof(double)*_elemDim);
-			return intP[num].weight*intP[num].refDv;
-		}
-		virtual void copyStress(double* ptr,int n){
-			for(int i=0;i<_elemDim*_elemDim;i++)
-			{
-				ptr[i]=intP[n].Cauchy[i];
-			}
-		}*/
-        /*
-		virtual void mergeGradient(double *ptr)
-		{
-			for(int i=0;i<_nNode;i++)
-			{
-				for(int j=0;j<__DIM;j++)
-				{
-					ptr[this->index[i]*__DIM+j]+=this->gradient[i*__DIM+j];
-				}
-			}
-		}*/
 		public void mergeHessian(ShoNS.Array.SparseDoubleArray _hess)
 		{
 			for(int i=0;i<nNode;i++)

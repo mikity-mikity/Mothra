@@ -19,6 +19,10 @@ namespace Minilla3D
 
             public List<Minilla3D.Elements.nurbsElement> elemList = new List<Elements.nurbsElement>();
             public List<Minilla3D.Elements.nurbsCurve> edgeList = new List<Elements.nurbsCurve>();
+            public List<Minilla3D.Elements.nurbsCurve> topEdge = new List<Minilla3D.Elements.nurbsCurve>();
+            public List<Minilla3D.Elements.nurbsCurve> bottomEdge = new List<Minilla3D.Elements.nurbsCurve>();
+            public List<Minilla3D.Elements.nurbsCurve> rightEdge = new List<Minilla3D.Elements.nurbsCurve>();
+            public List<Minilla3D.Elements.nurbsCurve> leftEdge = new List<Minilla3D.Elements.nurbsCurve>();
             public void memoryMetric()
             {
                 foreach (Minilla3D.Elements.element e in elemList)
@@ -42,6 +46,10 @@ namespace Minilla3D
             {
                 elemList.Clear();
                 edgeList.Clear();
+                topEdge.Clear();
+                bottomEdge.Clear();
+                rightEdge.Clear();
+                leftEdge.Clear();
             }
             public void computeAiryFunction()
             {
@@ -58,6 +66,10 @@ namespace Minilla3D
                     e.computeAiryFunction()
                 );*/
                 foreach (var e in elemList)
+                {
+                    e.precompute();
+                }
+                foreach (var e in edgeList)
                 {
                     e.precompute();
                 }
@@ -84,9 +96,19 @@ namespace Minilla3D
                     e.setupNodesFromList(x)
                     );
             }
+            public void giveEdgeTension(double t)
+            {
+                foreach (var e in edgeList)
+                {
+                    e.giveTension(t);
+                }
+            }
             public void computeHessian()
             {
                 Parallel.ForEach(elemList, (e) =>
+                    e.computeHessian()
+                );
+                Parallel.ForEach(edgeList, (e) =>
                     e.computeHessian()
                 );
             }
@@ -106,18 +128,89 @@ namespace Minilla3D
                     num=e.mergeJacobian(jacob, num);
                 }
             }
-            public void GetJacobianOfCurvature(SparseDoubleArray jacobH)
+            public void GetJacobianOfCurvature(SparseDoubleArray jacobH,bool T)
             {
                 int num = 0;
                 foreach (var e in elemList)
                 {
-                    num = e.mergeJacobianOfCurvature(jacobH, num);
+                    num = e.mergeJacobianOfCurvature(jacobH, num,T);
                 }
             }
-
+            public int totalNumbrOfTopEdgeIntPoint()
+            {
+                int num = 0;
+                foreach (var e in topEdge)
+                {
+                    num += e.numberOfConstraintConditions();
+                }
+                return num;
+            }
+            public int totalNumbrOfBottomEdgeIntPoint()
+            {
+                int num = 0;
+                foreach (var e in bottomEdge)
+                {
+                    num += e.numberOfConstraintConditions();
+                }
+                return num;
+            }
+            public int totalNumbrOfLeftEdgeIntPoint()
+            {
+                int num = 0;
+                foreach (var e in leftEdge)
+                {
+                    num += e.numberOfConstraintConditions();
+                }
+                return num;
+            }
+            public int totalNumbrOfRightEdgeIntPoint()
+            {
+                int num = 0;
+                foreach (var e in rightEdge)
+                {
+                    num += e.numberOfConstraintConditions();
+                }
+                return num;
+            }
+            public void GetJacobianOfTopEdge(SparseDoubleArray jacob)
+            {
+                int num = 0;
+                foreach (var e in topEdge)
+                {
+                    num = e.mergeJacobianOfPosition(jacob, num);
+                }
+            }
+            public void GetJacobianOfBottomEdge(SparseDoubleArray jacob)
+            {
+                int num = 0;
+                foreach (var e in bottomEdge)
+                {
+                    num = e.mergeJacobianOfPosition(jacob, num);
+                }
+            }
+            public void GetJacobianOfRightEdge(SparseDoubleArray jacob)
+            {
+                int num = 0;
+                foreach (var e in rightEdge)
+                {
+                    num = e.mergeJacobianOfPosition(jacob, num);
+                }
+            }
+            public void GetJacobianOfLeftEdge(SparseDoubleArray jacob)
+            {
+                int num = 0;
+                foreach (var e in leftEdge)
+                {
+                    num = e.mergeJacobianOfPosition(jacob, num);
+                }
+            }
             public void getHessian(ShoNS.Array.SparseDoubleArray hess)
             {
                 foreach (var e in elemList)
+                {
+                    e.mergeHessian(hess);
+                }
+                foreach (var e in edgeList)
                 {
                     e.mergeHessian(hess);
                 }
@@ -158,12 +251,12 @@ namespace Minilla3D
                 }
                 return num;
             }
-            public int totalNumberOfIconst()
+            public int totalNumberOfIconst(bool T)
             {
                 int num = 0;
                 foreach (var e in elemList)
                 {
-                    num += e.numberOfConstraintConditions2();
+                    num += e.numberOfConstraintConditions2(T);
                 }
                 return num;
             }
