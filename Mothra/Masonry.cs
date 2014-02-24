@@ -636,7 +636,7 @@ namespace mikity.ghComponents
             {
                 origX[i * 3 + 0, 0] = x[i, 0];
                 origX[i * 3 + 1, 0] = x[i, 1];
-                origX[i * 3 + 2, 0] = -200;// x[i, 2];
+                origX[i * 3 + 2, 0] = x[i, 2];
             }
             List<int> shift = new List<int>();
             int T1 = 0;
@@ -715,26 +715,26 @@ namespace mikity.ghComponents
                 double Fy = F[i * 3 + 1, 0];
                 double Fz = F[i * 3 + 2, 0];
 
-                if (/*!boundary&&*/(Fx * Fx + Fy * Fy + Fz * Fz) >0.0001/* 0.01*/)
+                if (/*!boundary&&*/(Fx * Fx + Fy * Fy + Fz * Fz) >0.01/* 0.01*/)
                 {
                     F[i * 3 + 0, 0] = Fx;
                     F[i * 3 + 1, 0] = Fy;
-                    F[i * 3 + 2, 0] = Fz;
+                    F[i * 3 + 2, 0] = Fz+1;
                     Force[i, 0] = Fx;
                     Force[i, 1] = Fy;
-                    Force[i, 2] = Fz;
+                    Force[i, 2] = Fz+1;
                 }
                 else
                 {
                     F[i * 3 + 0, 0] = 0;
                     F[i * 3 + 1, 0] = 0;
-                    F[i * 3 + 2, 0] = 0;
+                    F[i * 3 + 2, 0] = 0+1;
                     Force[i, 0] = 0;
                     Force[i, 1] = 0;
-                    Force[i, 2] = 0;
+                    Force[i, 2] = 0+1;
                 }
             }
-            /*
+            
             
             origX = DoubleArray.Zeros(nParticles * 3, 1);
             for (int i = 0; i < nParticles; i++)
@@ -809,7 +809,7 @@ namespace mikity.ghComponents
             
 
             
-            */
+            
             for (int i = 0; i < nParticles; i++)
             {   
                 x[i, 0] = xx[i * 3, 0];
