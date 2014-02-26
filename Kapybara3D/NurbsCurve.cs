@@ -154,6 +154,13 @@ namespace Minilla3D.Elements
             }
             return false;
         }
+        public void setPlane(double a, double b, double c, double d)
+        {
+            foreach (var p in intP)
+            {
+                p.refIntP.setPlane(a, b, c, d);
+            }
+        }
         public int numberOfConstraintConditions()
         {
             return nIntPoint;

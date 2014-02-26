@@ -8,6 +8,16 @@ namespace Minilla3D.Elements
 {    
     public class integratingPoint
     {
+        public integratingPoint refIntP = null;
+        struct plane
+        {
+            public double a;
+            public double b;
+            public double c;
+            public double d;
+        };
+        plane cuttingPlane;
+        double theta=0;
         const int __DIM=3;
         int nNode,elemDim;
         int nDV;
@@ -36,17 +46,6 @@ namespace Minilla3D.Elements
         public double[,] tmpHessian;
         public double[] edge;
         public double tension = 0;
-        public void giveTension(double t)
-        {
-            tension = t;
-            for(int i=0;i<elemDim;i++)
-            {
-                for (int j = 0; j < elemDim; j++)
-                {
-                    SPK[i, j] = t * invMetric[i, j];
-                }
-            }
-        }
         public double[,] SPK
         {
             protected set;
@@ -108,6 +107,98 @@ namespace Minilla3D.Elements
             weight = 1.0;
             refDv = 1.0;
             dv=1.0;
+        }
+        public void setPlane(double a, double b, double c, double d)
+        {
+            //ax+by+cz+d=0
+            cuttingPlane.a = a;
+            cuttingPlane.b = b;
+            cuttingPlane.c = c;
+            cuttingPlane.d = d;
+        }
+        public void giveTension(double t)
+        {
+            tension = t;
+            for (int i = 0; i < elemDim; i++)
+            {
+                for (int j = 0; j < elemDim; j++)
+                {
+                    SPK[i, j] = t/dv/dv;
+                }
+            }
+        }
+        public void computeAngle(double[] x)
+        {
+            //z_1,z_2
+            double[] g = new double[2] { 0, 0 };
+            for (int i = 0; i < elemDim; i++)
+            {
+                for (int k = 0; k < nNode; k++)
+                {
+                    g[i] += C[i, 2, k * __DIM + 2] * x[k * __DIM + 2];
+                }
+            }
+            double T1 = 0;
+            if (edge[1] == 1)//Right
+            {
+                T1 = g[0] * invMetric[0, 0] / Math.Sqrt(invMetric[0, 0]) +
+                    g[1] * invMetric[1, 0] / Math.Sqrt(invMetric[0, 0]);
+            }
+            else if (edge[1] == -1)//Left
+            {
+                T1 = -g[0] * invMetric[0, 0] / Math.Sqrt(invMetric[0, 0]) -
+                    g[1] * invMetric[1, 0] / Math.Sqrt(invMetric[0, 0]);
+            }
+            else if (edge[0] == 1)//Top
+            {
+                T1 = -g[0] * invMetric[0, 1] / Math.Sqrt(invMetric[1, 1]) -
+                    g[1] * invMetric[1, 1] / Math.Sqrt(invMetric[1, 1]);
+            }
+            else if (edge[0] == -1)//Bottom
+            {
+                T1 = g[0] * invMetric[0, 1] / Math.Sqrt(invMetric[1, 1]) +
+                    g[1] * invMetric[1, 1] / Math.Sqrt(invMetric[1, 1]);
+            }
+
+            double[] s = new double[2] { -this.cuttingPlane.a / this.cuttingPlane.c, -this.cuttingPlane.b / this.cuttingPlane.c };
+            double T2 = 0;
+            if (edge[1] == 1)//Right
+            {
+                T2 = s[0] * F[0, 0] / Math.Sqrt(invMetric[0, 0]) +
+                    s[1] * F[0, 1] / Math.Sqrt(invMetric[0, 0]);
+            }
+            else if (edge[1] == -1)//Left
+            {
+                T2 = -s[0] * F[0, 0] / Math.Sqrt(invMetric[0, 0]) -
+                    s[1] * F[0, 1] / Math.Sqrt(invMetric[0, 0]);
+            }
+            else if (edge[0] == 1)//Top
+            {
+                T2 = -s[0] * F[1, 0] / Math.Sqrt(invMetric[1, 1]) -
+                    s[1] * F[1, 1] / Math.Sqrt(invMetric[1, 1]);
+            }
+            else if (edge[0] == -1)//Bottom
+            {
+                T2 = s[0] * F[1, 0] / Math.Sqrt(invMetric[1, 1]) +
+                    s[1] * F[1, 1] / Math.Sqrt(invMetric[1, 1]);
+            }
+
+            theta = T2-T1;
+        }
+        internal double dot(double[] A, double[] B)
+        {
+            return A[0] * B[0] + A[1] * B[1] + A[2] * B[2];
+        }
+        internal double[] cross(double[] A,double[] B)
+        {
+            double x = A[1] * B[2] - A[2] * B[1];
+            double y = A[2] * B[0] - A[0] * B[2];
+            double z = A[0] * B[1] - A[1] * B[0];
+            return new double[3] { x, y, z };
+        }
+        public void transferAngleToTension()
+        {
+            this.refIntP.giveTension(theta);
         }
         public double[] getGradientOfH(int i,int j)
         {

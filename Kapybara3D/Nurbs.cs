@@ -394,7 +394,33 @@ namespace Minilla3D.Elements
                     return 0;
             }
         }
-
+        public void stitch(params nurbsCurve[] elems)
+        {
+            int count = 0;
+            foreach (var e in elems)
+            {
+                for (int i = 0; i < e.nIntPoint; i++, count++)
+                {
+                    bIntP[count].refIntP = e.intP[i];
+                    e.intP[i].refIntP = bIntP[count];
+                }
+            }
+        }
+        public void setPlane(double a, double b, double c, double d)
+        {
+            foreach (var p in intP)
+            {
+                p.refIntP.setPlane(a, b, c, d);
+            }
+        }
+        public void computeAngle()
+        {
+            foreach (var p in bIntP)
+            {
+                p.computeAngle(this.node);
+                p.transferAngleToTension();
+            }
+        }
         public nurbsElement(int _uDim, int _vDim, int[] _index, int uNum, int vNum, double[] uKnot, double[] vKnot, border _border = border.None)
             : base(_index, _uDim * _vDim, 2, (_uDim + 1) * (_vDim + 1))
         {
@@ -577,19 +603,19 @@ namespace Minilla3D.Elements
                         bIntP[count].weight = __pu(i, bVdim - 1);
                         bIntP[count].edge = new double[2] { 0, -1 };
                     }
-                    for (int i = 0; i < bVdim; i++, count++)
-                    {
-                        bIntP[count].localCoord[0] = 1;
-                        bIntP[count].localCoord[1] = __cu(i, bVdim - 1);
-                        bIntP[count].weight = __pu(i, bVdim - 1);
-                        bIntP[count].edge = new double[2] { 0, 1 };
-                    }
                     for (int i = 0; i < bUdim; i++, count++)
                     {
                         bIntP[count].localCoord[0] = __cu(i, bUdim-1);
                         bIntP[count].localCoord[1] = 0;
                         bIntP[count].weight = __pu(i, bUdim - 1);
                         bIntP[count].edge = new double[2] { 1, 0 };
+                    }
+                    for (int i = 0; i < bVdim; i++, count++)
+                    {
+                        bIntP[count].localCoord[0] = 1;
+                        bIntP[count].localCoord[1] = __cu(i, bVdim - 1);
+                        bIntP[count].weight = __pu(i, bVdim - 1);
+                        bIntP[count].edge = new double[2] { 0, 1 };
                     }
                     break;
                 case border.Left | border.Bottom | border.Right:
@@ -601,19 +627,19 @@ namespace Minilla3D.Elements
                         bIntP[count].weight = __pu(i, bVdim - 1);
                         bIntP[count].edge = new double[2] { 0, -1 };
                     }
-                    for (int i = 0; i < bVdim; i++,count++)
-                    {
-                        bIntP[count].localCoord[0] = 1;
-                        bIntP[count].localCoord[1] = __cu(i,bVdim-1);
-                        bIntP[count].weight = __pu(i, bVdim - 1);
-                        bIntP[count].edge = new double[2] { 0, 1 };
-                    }
                     for (int i = 0; i < bUdim; i++,count++)
                     {
                         bIntP[count].localCoord[0] = __cu(i, bUdim-1);
                         bIntP[count].localCoord[1] = 1;
                         bIntP[count].weight = __pu(i, bUdim - 1);
                         bIntP[count].edge = new double[2] { -1, 0 };
+                    }
+                    for (int i = 0; i < bVdim; i++,count++)
+                    {
+                        bIntP[count].localCoord[0] = 1;
+                        bIntP[count].localCoord[1] = __cu(i,bVdim-1);
+                        bIntP[count].weight = __pu(i, bVdim - 1);
+                        bIntP[count].edge = new double[2] { 0, 1 };
                     }
                     break;
                 case border.Left | border.Top | border.Bottom:
@@ -722,14 +748,14 @@ namespace Minilla3D.Elements
                         bIntP[count].localCoord[0] = 0;
                         bIntP[count].localCoord[1] = __cu(i, bVdim-1);
                         bIntP[count].weight = __pu(i, bVdim - 1);
-                        bIntP[count].edge = new double[2] { 0, 1 };//strange
+                        bIntP[count].edge = new double[2] { 0, -1 };
                     }
                     for (int i = 0; i < bUdim; i++,count++)
                     {
                         bIntP[count].localCoord[0] = __cu(i, bUdim-1);
                         bIntP[count].localCoord[1] = 1;
                         bIntP[count].weight = __pu(i, bUdim - 1);
-                        bIntP[count].edge = new double[2] { 1, 0 };//strange
+                        bIntP[count].edge = new double[2] { -1, 0 };
                     }
                     break;
                 case border.Right | border.Top:
@@ -739,14 +765,14 @@ namespace Minilla3D.Elements
                         bIntP[count].localCoord[0] = 1;
                         bIntP[count].localCoord[1] = __cu(i, bVdim-1);
                         bIntP[count].weight = __pu(i, bVdim - 1);
-                        bIntP[count].edge = new double[2] { 0, -1 };//strage
+                        bIntP[count].edge = new double[2] { 0, 1 };
                     }
                     for (int i = 0; i < bUdim; i++,count++)
                     {
                         bIntP[count].localCoord[0] = __cu(i, bUdim-1);
                         bIntP[count].localCoord[1] = 0;
                         bIntP[count].weight = __pu(i, bUdim - 1);
-                        bIntP[count].edge = new double[2] { -1, 0 };//strange
+                        bIntP[count].edge = new double[2] { 1, 0 };
                     }
                     break;
                 case border.Right | border.Bottom:

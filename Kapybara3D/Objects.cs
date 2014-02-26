@@ -225,14 +225,13 @@ namespace Minilla3D
                     e.computeGlobalCoord()
                 );
             }
-            public void computeEdgeForce(double[,] Force)
+            public void computeAngle()
             {
-                foreach(var e in elemList)
+                foreach (var e in elemList)
                 {
-                    e.computeEdgeForce(Force);
+                    e.computeAngle();
                 }
             }
-
             public int totalNumberOfIntPnts()
             {
                 int num = 0;

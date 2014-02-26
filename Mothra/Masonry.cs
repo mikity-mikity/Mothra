@@ -9,6 +9,7 @@ using System.Reflection;
 using Gurobi;
 using Microsoft.SolverFoundation.Common;
 using Microsoft.SolverFoundation.Solvers;
+using Minilla3D.Elements;
 namespace mikity.ghComponents
 {
 
@@ -206,9 +207,17 @@ namespace mikity.ghComponents
                 ub[nU * nV - nU] = 500;
                 lb[nU * nV - 1] = 500;
                 ub[nU * nV - 1] = 500;
-                
-                lb[(nU / 2) + (nV / 2) * nU-1] = 0;
-                ub[(nU / 2) + (nV / 2) * nU-1] = 0;
+
+                //lb[(nU / 2) + (nV / 2) * nU-1] = 0;
+                //ub[(nU / 2) + (nV / 2) * nU-1] = 0;
+                lb[28] = 0;
+                ub[28] = 0;
+                lb[29] = 0;
+                ub[29] = 0;
+                lb[36] = 0;
+                ub[36] = 0;
+                lb[37] = 0;
+                ub[37] = 0;
                 GRBVar[] vars = model.AddVars(lb, ub, null, type, name);
                 model.Update();
                 
@@ -599,7 +608,36 @@ namespace mikity.ghComponents
                         double AA = planeVars[i][0].Get(GRB.DoubleAttr.X);
                         double BB = planeVars[i][1].Get(GRB.DoubleAttr.X);
                         double DD = planeVars[i][2].Get(GRB.DoubleAttr.X);
-                        cuttingPlane[i] = new Plane(AA, BB, 1.0, -DD);
+                        double Norm = Math.Sqrt(AA * AA + BB * BB + 1);
+                        cuttingPlane[i] = new Plane(AA/Norm, BB/Norm, 1.0/Norm, DD/Norm);
+                        switch (i)
+                        {
+                            case 0:
+                                foreach (var e in myMasonry.topEdge)
+                                {
+                                    e.setPlane(AA, BB, 1, DD);
+                                }
+                                break;
+                            case 1:
+                                foreach (var e in myMasonry.bottomEdge)
+                                {
+                                    e.setPlane(AA, BB, 1, DD);
+                                }
+                                break;
+                            case 2:
+                                foreach (var e in myMasonry.leftEdge)
+                                {
+                                    e.setPlane(AA, BB, 1, DD);
+                                }
+                                break;
+                            case 3:
+                                foreach (var e in myMasonry.rightEdge)
+                                {
+                                    e.setPlane(AA, BB, 1, DD);
+                                }
+                                break;
+                        }
+
                     }
                 }
                 model.Dispose();
@@ -616,8 +654,12 @@ namespace mikity.ghComponents
             myMasonry.setupNodesFromList(x);
             myMasonry.precompute();
             myMasonry.computeAiryFunction();
+            myMasonry.giveEdgeTension(0);
+            if (boundary)
+            {
+                myMasonry.computeAngle();
+            }
             Force = new double[nU * nV, 3];
-            //myMasonry.computeEdgeForce(Force);
 
             //Solve
             myMasonry.computeEigenVectors();
@@ -625,7 +667,7 @@ namespace mikity.ghComponents
             myMasonry.setupNodesFromList(x);
             myMasonry.computeGlobalCoord();
             ShoNS.Array.SparseDoubleArray hess = new SparseDoubleArray(nU * nV * 3, nU * nV * 3);
-            //myMasonry.giveEdgeTension(1);
+            
             myMasonry.computeHessian();
             myMasonry.getHessian(hess);
             Nurbs2x(outputNurbs, x);
@@ -645,21 +687,46 @@ namespace mikity.ghComponents
             {
                 shift.Add(i);
             }
-            T1 = (nParticles - boundaryIndex.Count()) * 3 - 1;
-            T2 = nParticles * 3 - 1;
-            int C1 = 0;
-            int C2 = nParticles - boundaryIndex.Count();
-            for (int i = 0; i < nParticles; i++)
+            int C1 = 0,C2=0;
+            if (boundary)
             {
-                if (isBoundary(i))
+                T1 = (nParticles - 4) * 3 - 1;
+                T2 = nParticles * 3 - 1;
+                C1 = 0;
+                C2 = nParticles - 4;
+                for (int i = 0; i < nParticles; i++)
                 {
-                    shift[i] = C2;
-                    C2++;
+                    if (i == 0 || i == nU - 1 || i == nU * nV - nU || i == nU * nV - 1)
+                    {
+                        shift[i] = C2;
+                        C2++;
+                    }
+                    else
+                    {
+                        shift[i] = C1;
+                        C1++;
+                    }
                 }
-                else
+
+            }
+            else
+            {
+                T1 = (nParticles - boundaryIndex.Count()) * 3 - 1;
+                T2 = nParticles * 3 - 1;
+                C1 = 0;
+                C2 = nParticles - boundaryIndex.Count();
+                for (int i = 0; i < nParticles; i++)
                 {
-                    shift[i] = C1;
-                    C1++;
+                    if (isBoundary(i))
+                    {
+                        shift[i] = C2;
+                        C2++;
+                    }
+                    else
+                    {
+                        shift[i] = C1;
+                        C1++;
+                    }
                 }
             }
             var shiftArray = new SparseDoubleArray(nParticles * 3, nParticles * 3);
@@ -828,11 +895,6 @@ namespace mikity.ghComponents
             a2.LayerIndex = 2;
             Guid id2 = doc.Objects.AddSurface(outputNurbs, a2);
             obj_ids.Add(id2);
-            for (int i = 0; i < 4; i++)
-            {
-                Guid id3 = doc.Objects.AddCircle(new Circle(cuttingPlane[i], 30));
-                obj_ids.Add(id3);
-            }
             base.BakeGeometry(doc, att, obj_ids);
         }
         public override void DrawViewportWires(Grasshopper.Kernel.IGH_PreviewArgs args)
@@ -843,12 +905,15 @@ namespace mikity.ghComponents
             }
             for (int i = 0; i < 4; i++)
             {
+                double[] f = null;
                 if (cuttingPlane[i] != null)
                 {
-                    var P1 = cuttingPlane[i].PointAt(-10, -10);
-                    var P2 = cuttingPlane[i].PointAt(10, -10);
-                    var P3 = cuttingPlane[i].PointAt(10, 10);
-                    var P4 = cuttingPlane[i].PointAt(-10, 10);
+                    f = cuttingPlane[i].GetPlaneEquation();
+                    //System.Windows.MessageBox.Show(f[0].ToString()+","+f[1].ToString()+","+f[2].ToString()+","+f[3].ToString());
+                    var P1 = cuttingPlane[i].PointAt(-100, -100);
+                    var P2 = cuttingPlane[i].PointAt(100, -100);
+                    var P3 = cuttingPlane[i].PointAt(100, 100);
+                    var P4 = cuttingPlane[i].PointAt(-100, 100);
                     args.Display.DrawLine(P1, P2, System.Drawing.Color.LightCoral, 2);
                     args.Display.DrawLine(P2, P3, System.Drawing.Color.LightCoral, 2);
                     args.Display.DrawLine(P3, P4, System.Drawing.Color.LightCoral, 2);
@@ -876,10 +941,18 @@ namespace mikity.ghComponents
             Nurbs2x(xyNurbs, x);
             myMasonry.setupNodesFromList(x);
             myMasonry.computeGlobalCoord();
-
-            foreach (var e in myMasonry.elemList)
+            foreach (var e in myMasonry.edgeList)
             {
                 for (int i = 0; i < e.nIntPoint; i++)
+                {
+                    double[] node2 = e.getIntPoint(i);
+                    args.Display.Draw2dText(e.intP[i].tension.ToString("00.00"), System.Drawing.Color.White, new Rhino.Geometry.Point3d(node2[0], node2[1], node2[2]), true);
+                }
+            }
+            
+            foreach (var e in myMasonry.elemList)
+            {
+/*                for (int i = 0; i < e.nIntPoint; i++)
                 {
                     e.getEigenVectors(vec, val, i);
                     node = e.getIntPoint(i);
@@ -897,8 +970,8 @@ namespace mikity.ghComponents
                     args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] + vec[1][0] * S2, node[1] + vec[1][1] * S2, node[2] + vec[1][2] * S2), color, 1);
                     args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] - vec[1][0] * S2, node[1] - vec[1][1] * S2, node[2] - vec[1][2] * S2), color, 1);
 
-                }
-                for (int i = 0; i < e.nBIntPoint; i++)
+                }*/
+/*                for (int i = 0; i < e.nBIntPoint; i++)
                 {
                     e.getBEigenVectors(vec, val, i);
                     node = e.getBIntPoint(i);
@@ -916,7 +989,7 @@ namespace mikity.ghComponents
                     args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] + vec[1][0] * S2, node[1] + vec[1][1] * S2, node[2] + vec[1][2] * S2), color, 1);
                     args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] - vec[1][0] * S2, node[1] - vec[1][1] * S2, node[2] - vec[1][2] * S2), color, 1);
 
-                }
+                }*/ 
             }
             List<Rhino.Geometry.Point3d> xyP = new List<Point3d>();
             List<Rhino.Geometry.Point3d> outputP = new List<Point3d>();
@@ -1204,11 +1277,10 @@ namespace mikity.ghComponents
                         }
                     }
                     //judge if on the border
-                    Minilla3D.Elements.nurbsElement.border border=Minilla3D.Elements.nurbsElement.border.None;
+                    Minilla3D.Elements.nurbsElement.border _border=Minilla3D.Elements.nurbsElement.border.None;
                     if (j == 1)
                     {
-                        border = border | Minilla3D.Elements.nurbsElement.border.Top;
-                        //if (i != nU - uDdim)
+                        _border = _border | Minilla3D.Elements.nurbsElement.border.Top;
                         {
                             int[] index2 = new int[uDim];
                             for (int l = 0; l < uDim; l++)
@@ -1222,8 +1294,7 @@ namespace mikity.ghComponents
                     }
                     if (i == 1)
                     {
-                        border = border | Minilla3D.Elements.nurbsElement.border.Left;
-                        //if (j != nV - vDdim)
+                        _border = _border | Minilla3D.Elements.nurbsElement.border.Left;
                         {
                             int[] index2 = new int[vDim];
                             for (int k = 0; k < vDim; k++)
@@ -1237,8 +1308,7 @@ namespace mikity.ghComponents
                     }
                     if (j == nV - vDdim)
                     {
-                        border = border | Minilla3D.Elements.nurbsElement.border.Bottom;
-                        //if (i != 1)
+                        _border = _border | Minilla3D.Elements.nurbsElement.border.Bottom;
                         {
                             int[] index2 = new int[uDim];
                             for (int l = 0; l < uDim; l++)
@@ -1252,8 +1322,7 @@ namespace mikity.ghComponents
                     }
                     if (i == nU - uDdim)
                     {
-                        border = border | Minilla3D.Elements.nurbsElement.border.Right;
-                        //if (j != 1)
+                        _border = _border | Minilla3D.Elements.nurbsElement.border.Right;
                         {
                             int[] index2 = new int[vDim];
                             for (int k = 0; k < vDim; k++)
@@ -1266,7 +1335,52 @@ namespace mikity.ghComponents
                             myMasonry.rightEdge.Add(c);
                         }
                     }
-                    myMasonry.elemList.Add(new Minilla3D.Elements.nurbsElement(uDim, vDim, index, i, j, uKnot, vKnot, border));
+                    myMasonry.elemList.Add(new Minilla3D.Elements.nurbsElement(uDim, vDim, index, i, j, uKnot, vKnot, _border));
+                    switch (_border)
+                    {
+                        case nurbsElement.border.Left|nurbsElement.border.Top | nurbsElement.border.Right:
+                            myMasonry.elemList.Last().stitch( myMasonry.leftEdge.Last(),myMasonry.topEdge.Last(), myMasonry.rightEdge.Last());
+                            break;
+                        case nurbsElement.border.Left | nurbsElement.border.Bottom | nurbsElement.border.Right:
+                            myMasonry.elemList.Last().stitch(myMasonry.leftEdge.Last(), myMasonry.bottomEdge.Last(), myMasonry.rightEdge.Last());
+                            break;
+                        case nurbsElement.border.Left | nurbsElement.border.Top | nurbsElement.border.Bottom:
+                            myMasonry.elemList.Last().stitch(myMasonry.leftEdge.Last(), myMasonry.topEdge.Last(), myMasonry.bottomEdge.Last());
+                            break;
+                        case nurbsElement.border.Right | nurbsElement.border.Top | nurbsElement.border.Bottom:
+                            myMasonry.elemList.Last().stitch(myMasonry.rightEdge.Last(), myMasonry.topEdge.Last(), myMasonry.bottomEdge.Last());
+                            break;
+                        case nurbsElement.border.Left | nurbsElement.border.Right:
+                            myMasonry.elemList.Last().stitch(myMasonry.leftEdge.Last(), myMasonry.rightEdge.Last());
+                            break;
+                        case nurbsElement.border.Top | nurbsElement.border.Bottom:
+                            myMasonry.elemList.Last().stitch(myMasonry.topEdge.Last(), myMasonry.bottomEdge.Last());
+                            break;
+                        case nurbsElement.border.Left | nurbsElement.border.Top:
+                            myMasonry.elemList.Last().stitch(myMasonry.leftEdge.Last(), myMasonry.topEdge.Last());
+                            break;
+                        case nurbsElement.border.Left | nurbsElement.border.Bottom:
+                            myMasonry.elemList.Last().stitch(myMasonry.leftEdge.Last(), myMasonry.bottomEdge.Last());
+                            break;
+                        case nurbsElement.border.Right | nurbsElement.border.Top:
+                            myMasonry.elemList.Last().stitch(myMasonry.rightEdge.Last(), myMasonry.topEdge.Last());
+                            break;
+                        case nurbsElement.border.Right | nurbsElement.border.Bottom:
+                            myMasonry.elemList.Last().stitch(myMasonry.rightEdge.Last(), myMasonry.bottomEdge.Last());
+                            break;
+                        case nurbsElement.border.Left:
+                            myMasonry.elemList.Last().stitch(myMasonry.leftEdge.Last());
+                            break;
+                        case nurbsElement.border.Right:
+                            myMasonry.elemList.Last().stitch(myMasonry.rightEdge.Last());
+                            break;
+                        case nurbsElement.border.Top:
+                            myMasonry.elemList.Last().stitch(myMasonry.topEdge.Last());
+                            break;
+                        case nurbsElement.border.Bottom:
+                            myMasonry.elemList.Last().stitch(myMasonry.bottomEdge.Last());
+                            break;
+                    }
                 }
             }
         }
