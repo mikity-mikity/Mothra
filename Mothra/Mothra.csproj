@@ -52,7 +52,6 @@
     <Reference Include="MatrixInterf, Version=2.0.5.0, Culture=neutral, PublicKeyToken=1fa71b5ffec10e32, processorArchitecture=MSIL">
       <Private>False</Private>
     </Reference>
-    <Reference Include="Microsoft.Solver.Foundation" />
     <Reference Include="Microsoft.VisualC.STLCLR" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework">

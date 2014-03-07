@@ -7,8 +7,6 @@ using Rhino.Geometry;
 using System.IO;
 using System.Reflection;
 using Gurobi;
-using Microsoft.SolverFoundation.Common;
-using Microsoft.SolverFoundation.Solvers;
 using Minilla3D.Elements;
 namespace mikity.ghComponents
 {
