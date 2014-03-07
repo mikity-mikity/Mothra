@@ -18,6 +18,9 @@ namespace mikity.ghComponents
     /// </summary>
     public class Mothra : Grasshopper.Kernel.GH_Component
     {
+        Transform[] XZ;
+        Transform[] XZ2;
+
         
         Rhino.Geometry.NurbsSurface inputNurbs, xyNurbs;
         NurbsSurface[] airyNurbs;
@@ -119,23 +122,25 @@ namespace mikity.ghComponents
                 x[i, 2] /= norm/500;
             }            
             x2Nurbs(x, airyNurbs[0]);
-
+            int nConstraints = 0;
+            int nConstraints2 = 0;
+            ShoNS.Array.SparseDoubleArray jacobian=null;
+            ShoNS.Array.DoubleArray residual=null;
+            ShoNS.Array.SparseDoubleArray jacobianH=null;
             foreach (var v in myMasonry)
             {
                 v.setupNodesFromList(x);
                 v.precompute();
                 v.computeGlobalCoord();
+                nConstraints2 = v.totalNumberOfIconst(boundary);
+                nConstraints = v.totalNumberOfBconst();
+                jacobian = new SparseDoubleArray(nConstraints, nU * nV);
+                residual = new DoubleArray(nConstraints, 1);
+            
+                jacobianH = new SparseDoubleArray(nConstraints2, nU * nV);
+                v.GetJacobianOfCurvature(jacobianH, boundary);
+                v.getJacobian(jacobian);
             }
-            int nConstraints2 = myMasonry[0].totalNumberOfIconst(boundary);
-            int nConstraints = myMasonry[0].totalNumberOfBconst();
-            ShoNS.Array.SparseDoubleArray jacobian = new SparseDoubleArray(nConstraints, nU * nV);
-            ShoNS.Array.DoubleArray residual = new DoubleArray(nConstraints, 1);
-            
-            ShoNS.Array.SparseDoubleArray jacobianH = new SparseDoubleArray(nConstraints2, nU * nV);
-            myMasonry[0].GetJacobianOfCurvature(jacobianH,boundary);
-            
-            myMasonry[0].getJacobian(jacobian);
-            
             try
             {
                 ////////////////////////////GUROBI///////////////////
@@ -168,6 +173,7 @@ namespace mikity.ghComponents
 
                 GRBVar[] vars = model.AddVars(lb, ub, null, type, name);
                 model.Update();
+                GRBVar[][] planeVars=null;
                 
                 
                 lb = new double[nConstraints2];
@@ -319,7 +325,7 @@ namespace mikity.ghComponents
                 else
                 {
                     //Plane variables
-                    GRBVar[][] planeVars = new GRBVar[4][];
+                    planeVars = new GRBVar[4][];
                     for (int n = 0; n < 4; n++)
                     {
                         //z(x,y)=-D-Ax-By
@@ -358,8 +364,11 @@ namespace mikity.ghComponents
                     var bE = myMasonry[0].bottomEdge;
                     nConstraints=myMasonry[0].totalNumbrOfTopEdgeIntPoint();
                     jacobian = new SparseDoubleArray(nConstraints, nU * nV);
-                    myMasonry[0].GetJacobianOfTopEdge(jacobian);
-                    count=0;
+                    foreach (var v in myMasonry)
+                    {
+                        v.GetJacobianOfTopEdge(jacobian);
+                    }
+                    count = 0;
                     for (int i = 0; i < tE.Count; i++)
                     {
                         var e = tE[i];
@@ -394,7 +403,10 @@ namespace mikity.ghComponents
                     
                     nConstraints = myMasonry[0].totalNumbrOfBottomEdgeIntPoint();
                     jacobian = new SparseDoubleArray(nConstraints, nU * nV);
-                    myMasonry[0].GetJacobianOfBottomEdge(jacobian);
+                    foreach (var v in myMasonry)
+                    {
+                        v.GetJacobianOfBottomEdge(jacobian);
+                    }
                     count = 0;
                     for (int i = 0; i < bE.Count; i++)
                     {
@@ -430,7 +442,10 @@ namespace mikity.ghComponents
                     
                     nConstraints = myMasonry[0].totalNumbrOfLeftEdgeIntPoint();
                     jacobian = new SparseDoubleArray(nConstraints, nU * nV);
-                    myMasonry[0].GetJacobianOfLeftEdge(jacobian);
+                    foreach (var v in myMasonry)
+                    {
+                        v.GetJacobianOfLeftEdge(jacobian);
+                    }
                     count = 0;
                     for (int i = 0; i < lE.Count; i++)
                     {
@@ -467,7 +482,10 @@ namespace mikity.ghComponents
                     
                     nConstraints = myMasonry[0].totalNumbrOfRightEdgeIntPoint();
                     jacobian = new SparseDoubleArray(nConstraints, nU * nV);
-                    myMasonry[0].GetJacobianOfRightEdge(jacobian);
+                    foreach (var v in myMasonry)
+                    {
+                        v.GetJacobianOfRightEdge(jacobian);
+                    }
                     count = 0;
                     for (int i = 0; i < rE.Count; i++)
                     {
@@ -547,47 +565,11 @@ namespace mikity.ghComponents
                             break;
 
                     }
-                    for (int i = 0; i < 4; i++)
-                    {
-                        double AA = planeVars[i][0].Get(GRB.DoubleAttr.X);
-                        double BB = planeVars[i][1].Get(GRB.DoubleAttr.X);
-                        double DD = planeVars[i][2].Get(GRB.DoubleAttr.X);
-                        double Norm = Math.Sqrt(AA * AA + BB * BB + 1);
-                        cuttingPlane[i] = new Plane(AA/Norm, BB/Norm, 1.0/Norm, DD/Norm);
-                        switch (i)
-                        {
-                            case 0:
-                                foreach (var e in myMasonry[0].topEdge)
-                                {
-                                    e.setPlane(AA, BB, 1, DD);
-                                }
-                                break;
-                            case 1:
-                                foreach (var e in myMasonry[0].bottomEdge)
-                                {
-                                    e.setPlane(AA, BB, 1, DD);
-                                }
-                                break;
-                            case 2:
-                                foreach (var e in myMasonry[0].leftEdge)
-                                {
-                                    e.setPlane(AA, BB, 1, DD);
-                                }
-                                break;
-                            case 3:
-                                foreach (var e in myMasonry[0].rightEdge)
-                                {
-                                    e.setPlane(AA, BB, 1, DD);
-                                }
-                                break;
-                        }
-
-                    }
                 }
-
+                int count2 = 0;
                 for (int s = 1; s < nV - 1; s++)
                 {
-                    for (int t = 1; t < nU - 1; t++)
+                    for (int t = 1; t < nU - 1; t++,count2++)
                     {
                         lb = new double[nU * nV];
                         ub = new double[nU * nV];
@@ -622,7 +604,46 @@ namespace mikity.ghComponents
                         {
                             x[j, 2] = f[j];
                         }
-                        x2Nurbs(x, airyNurbs[s]);
+                        x2Nurbs(x, airyNurbs[count2]);
+                        if (boundary)
+                        {
+                            for (int i = 0; i < 4; i++)
+                            {
+                                double AA = planeVars[i][0].Get(GRB.DoubleAttr.X);
+                                double BB = planeVars[i][1].Get(GRB.DoubleAttr.X);
+                                double DD = planeVars[i][2].Get(GRB.DoubleAttr.X);
+                                double Norm = Math.Sqrt(AA * AA + BB * BB + 1);
+                                cuttingPlane[i] = new Plane(AA / Norm, BB / Norm, 1.0 / Norm, DD / Norm);
+                                switch (i)
+                                {
+                                    case 0:
+                                        foreach (var e in myMasonry[count2].topEdge)
+                                        {
+                                            e.setPlane(AA, BB, 1, DD);
+                                        }
+                                        break;
+                                    case 1:
+                                        foreach (var e in myMasonry[count2].bottomEdge)
+                                        {
+                                            e.setPlane(AA, BB, 1, DD);
+                                        }
+                                        break;
+                                    case 2:
+                                        foreach (var e in myMasonry[count2].leftEdge)
+                                        {
+                                            e.setPlane(AA, BB, 1, DD);
+                                        }
+                                        break;
+                                    case 3:
+                                        foreach (var e in myMasonry[count2].rightEdge)
+                                        {
+                                            e.setPlane(AA, BB, 1, DD);
+                                        }
+                                        break;
+                                }
+
+                            }
+                        }
                     }
                 }
                 model.Dispose();
@@ -656,7 +677,9 @@ namespace mikity.ghComponents
             
                 myMasonry[s].computeHessian();
                 myMasonry[s].getHessian(hess);
-                Nurbs2x(outputNurbs[s], x);
+
+
+                Nurbs2x(xyNurbs, x);
                 int nParticles = nU * nV;
                 //Current configuration
                 var origX = DoubleArray.Zeros(nParticles*3, 1);
@@ -869,36 +892,45 @@ namespace mikity.ghComponents
                     x[i, 1] = xx[i * 3 + 1, 0];
                     x[i, 2] = xx[i * 3 + 2, 0];
                 }
+                norm = 0;
+                for (int i = 0; i < nU * nV; i++)
+                {
+                    norm += x[i, 2] * x[i, 2];
+                }
+                norm = Math.Sqrt(norm);
+                if (boundary)
+                {
+                    norm = norm * 3;
+                }
+                for (int i = 0; i < nU * nV; i++)
+                {
+                    x[i, 2] /= norm / 750;
+                }            
+
                 x2Nurbs(x, outputNurbs[s]);
             }
 
         }
         public override void BakeGeometry(Rhino.RhinoDoc doc, Rhino.DocObjects.ObjectAttributes att, List<Guid> obj_ids)
         {
-            /*Rhino.DocObjects.ObjectAttributes a2 = att.Duplicate();
+            Rhino.DocObjects.ObjectAttributes a2 = att.Duplicate();
             a2.LayerIndex = 1;
-            Guid id = doc.Objects.AddSurface(airyNurbs, a2);
-            obj_ids.Add(id);
             Rhino.DocObjects.ObjectAttributes a3 = att.Duplicate();
-            a2.LayerIndex = 2;
-            Guid id2 = doc.Objects.AddSurface(outputNurbs, a2);
-            obj_ids.Add(id2);
-*/            base.BakeGeometry(doc, att, obj_ids);
+            a3.LayerIndex = 2;
+            for (int s = (nU - 2) * (nV - 2) - 1; s >= 0; s--)
+            {
+                var aN = airyNurbs[s].Duplicate() as Surface;
+                aN.Transform(XZ2[s]);
+                var oN = outputNurbs[s].Duplicate() as Surface;
+                oN.Transform(XZ[s]);
+                Guid id = doc.Objects.AddSurface(aN, a2);
+                obj_ids.Add(id);
+                Guid id2 = doc.Objects.AddSurface(oN, a3);
+                obj_ids.Add(id2);            
+            }
         }
         public override void DrawViewportWires(Grasshopper.Kernel.IGH_PreviewArgs args)
         {
-            Transform[] XZ = new Transform[(nU - 2) * (nV - 2)];
-            Transform[] XZ2 = new Transform[(nU - 2) * (nV - 2)];
-
-            int count = 0;
-            for (int s = 1; s < nU - 1; s++)
-            {
-                for (int t = 1; t < nV - 1; t++,count++)
-                {
-                    XZ[count] = Transform.Translation(250 * s, 250 * t, 0);
-                    XZ2[count] = Transform.Translation(250 * s, 250 * t, 200);
-                }
-            }
             if (Hidden)
             {
                 return;
@@ -938,33 +970,38 @@ namespace mikity.ghComponents
                     args.Display.DrawCurve(c, System.Drawing.Color.Orange, 4);
                 }
             }
-            for (int s = (nU - 2) * (nV - 2) - 1; s >= 0; s--)
+            if (XZ != null)
             {
-                var aN = airyNurbs[s].Duplicate() as Surface;
-                aN.Transform(XZ2[s]);
-                var oN = outputNurbs[s].Duplicate() as Surface;
-                oN.Transform(XZ[s]);
-                args.Display.DrawSurface(aN, System.Drawing.Color.Blue, 1);
-                //args.Display.DrawSurface(oN, System.Drawing.Color.Red, 1);
+                for (int s = (nU - 2) * (nV - 2) - 1; s >= 0; s--)
+                {
+                    var aN = airyNurbs[s].Duplicate() as Surface;
+                    aN.Transform(XZ2[s]);
+                    var oN = outputNurbs[s].Duplicate() as Surface;
+                    oN.Transform(XZ[s]);
+                    args.Display.DrawSurface(aN, System.Drawing.Color.Blue, 1);
+                    args.Display.DrawSurface(oN, System.Drawing.Color.Red, 1);
+                }
             }
-            args.Display.DrawSurface(xyNurbs, System.Drawing.Color.Green, 1);
-/*            double[][] vec = new double[2][] { new double[3], new double[3] };
+//            args.Display.DrawSurface(outputNurbs[1], System.Drawing.Color.Blue, 1);
+//            args.Display.DrawSurface(xyNurbs, System.Drawing.Color.Green, 1);
+            double[][] vec = new double[2][] { new double[3], new double[3] };
             double[] val = new double[2];
             double[] node=null;
-            double S = 500;
+            double S = 50;
             Nurbs2x(xyNurbs, x);
-            foreach (var v in myMasonry)
+            for (int s = (nU - 2) * (nV - 2) - 1; s >= 0; s--)
             {
+                var v=myMasonry[s];
                 v.setupNodesFromList(x);
                 v.computeGlobalCoord();
-                foreach (var e in v.edgeList)
+                /*foreach (var e in v.edgeList)
                 {
                     for (int i = 0; i < e.nIntPoint; i++)
                     {
                         double[] node2 = e.getIntPoint(i);
                         args.Display.Draw2dText(e.intP[i].tension.ToString("00.00"), System.Drawing.Color.White, new Rhino.Geometry.Point3d(node2[0], node2[1], node2[2]), true);
                     }
-                }
+                }*/
 
                 foreach (var e in v.elemList)
                 {
@@ -978,13 +1015,29 @@ namespace mikity.ghComponents
                         if (val[0] > 0)
                         { color = System.Drawing.Color.Cyan; }
                         else { color = System.Drawing.Color.Magenta; }
-                        args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] + vec[0][0] * S1, node[1] + vec[0][1] * S1, node[2] + vec[0][2] * S1), color, 1);
-                        args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] - vec[0][0] * S1, node[1] - vec[0][1] * S1, node[2] - vec[0][2] * S1), color, 1);
+                        var P1=new Rhino.Geometry.Point3d(node[0], node[1], node[2]);
+                        P1.Transform(XZ[s]);
+                        var P2=new Rhino.Geometry.Point3d(node[0] + vec[0][0] * S1, node[1] + vec[0][1] * S1, node[2] + vec[0][2] * S1);
+                        P2.Transform(XZ[s]);                        
+                        args.Display.DrawLine(P1,P2 , color, 1);
+                        P1=new Rhino.Geometry.Point3d(node[0], node[1], node[2]);
+                        P1.Transform(XZ[s]);
+                        P2=new Rhino.Geometry.Point3d(node[0] - vec[0][0] * S1, node[1] - vec[0][1] * S1, node[2] - vec[0][2] * S1);
+                        P2.Transform(XZ[s]);
+                        args.Display.DrawLine(P1, P2, color, 1);
                         if (val[1] > 0)
                         { color = System.Drawing.Color.Cyan; }
                         else { color = System.Drawing.Color.Magenta; }
-                        args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] + vec[1][0] * S2, node[1] + vec[1][1] * S2, node[2] + vec[1][2] * S2), color, 1);
-                        args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] - vec[1][0] * S2, node[1] - vec[1][1] * S2, node[2] - vec[1][2] * S2), color, 1);
+                        P1 = new Rhino.Geometry.Point3d(node[0], node[1], node[2]);
+                        P1.Transform(XZ[s]);
+                        P2 = new Rhino.Geometry.Point3d(node[0] + vec[1][0] * S2, node[1] + vec[1][1] * S2, node[2] + vec[1][2] * S2);
+                        P2.Transform(XZ[s]);
+                        args.Display.DrawLine(P1, P2, color, 1);
+                        P1 = new Rhino.Geometry.Point3d(node[0], node[1], node[2]);
+                        P1.Transform(XZ[s]);
+                        P2 = new Rhino.Geometry.Point3d(node[0] - vec[1][0] * S2, node[1] - vec[1][1] * S2, node[2] - vec[1][2] * S2);
+                        P2.Transform(XZ[s]);
+                        args.Display.DrawLine(P1, P2, color, 1);
 
                     }
                     for (int i = 0; i < e.nBIntPoint; i++)
@@ -997,14 +1050,29 @@ namespace mikity.ghComponents
                         if (val[0] > 0)
                         { color = System.Drawing.Color.Cyan; }
                         else { color = System.Drawing.Color.Magenta; }
-                        args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] + vec[0][0] * S1, node[1] + vec[0][1] * S1, node[2] + vec[0][2] * S1), color, 1);
-                        args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] - vec[0][0] * S1, node[1] - vec[0][1] * S1, node[2] - vec[0][2] * S1), color, 1);
+                        var P1 = new Rhino.Geometry.Point3d(node[0], node[1], node[2]);
+                        P1.Transform(XZ[s]);
+                        var P2 = new Rhino.Geometry.Point3d(node[0] + vec[0][0] * S1, node[1] + vec[0][1] * S1, node[2] + vec[0][2] * S1);
+                        P2.Transform(XZ[s]);
+                        args.Display.DrawLine(P1, P2, color, 1);
+                        P1 = new Rhino.Geometry.Point3d(node[0], node[1], node[2]);
+                        P1.Transform(XZ[s]);
+                        P2 = new Rhino.Geometry.Point3d(node[0] - vec[0][0] * S1, node[1] - vec[0][1] * S1, node[2] - vec[0][2] * S1);
+                        P2.Transform(XZ[s]);
+                        args.Display.DrawLine(P1, P2, color, 1);
                         if (val[1] > 0)
                         { color = System.Drawing.Color.Cyan; }
                         else { color = System.Drawing.Color.Magenta; }
-                        args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] + vec[1][0] * S2, node[1] + vec[1][1] * S2, node[2] + vec[1][2] * S2), color, 1);
-                        args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] - vec[1][0] * S2, node[1] - vec[1][1] * S2, node[2] - vec[1][2] * S2), color, 1);
-
+                        P1 = new Rhino.Geometry.Point3d(node[0], node[1], node[2]);
+                        P1.Transform(XZ[s]);
+                        P2 = new Rhino.Geometry.Point3d(node[0] + vec[1][0] * S2, node[1] + vec[1][1] * S2, node[2] + vec[1][2] * S2);
+                        P2.Transform(XZ[s]);
+                        args.Display.DrawLine(P1, P2, color, 1);
+                        P1 = new Rhino.Geometry.Point3d(node[0], node[1], node[2]);
+                        P1.Transform(XZ[s]);
+                        P2 = new Rhino.Geometry.Point3d(node[0] - vec[1][0] * S2, node[1] - vec[1][1] * S2, node[2] - vec[1][2] * S2);
+                        P2.Transform(XZ[s]);
+                        args.Display.DrawLine(P1, P2, color, 1);
                     }
                 }
             }
@@ -1035,7 +1103,7 @@ namespace mikity.ghComponents
                     }
                 }
             }
- * /
+
 /*            for (int s = (nU - 2) * (nV - 2) - 1; s >= 0; s--)
             {
                 Nurbs2x(outputNurbs[s], x);
@@ -1141,6 +1209,19 @@ namespace mikity.ghComponents
             nV = S.Points.CountV;
             airyNurbs = new NurbsSurface[(nU - 2) * (nV - 2)];
             outputNurbs = new NurbsSurface[(nU - 2) * (nV - 2)];
+            XZ = new Transform[(nU - 2) * (nV - 2)];
+            XZ2 = new Transform[(nU - 2) * (nV - 2)];
+
+            int count = 0;
+            for (int s = 1; s < nU - 1; s++)
+            {
+                for (int t = 1; t < nV - 1; t++, count++)
+                {
+                    XZ[count] = Transform.Translation(250 * s, 250 * t, 0);
+                    XZ2[count] = Transform.Translation(250 * s, 250 * t, 400);
+                }
+            }
+
             for (int j = 0; j < nV; j++)
             {
                 for (int i = 0; i < nU; i++)
@@ -1181,7 +1262,7 @@ namespace mikity.ghComponents
             {
                 airyNurbs[s]=S.Duplicate() as Rhino.Geometry.NurbsSurface;
                 outputNurbs[s]=S.Duplicate() as Rhino.Geometry.NurbsSurface;
-        }
+            }
             xyNurbs = S.Duplicate() as Rhino.Geometry.NurbsSurface;
             foreach (var s in airyNurbs)
             {
