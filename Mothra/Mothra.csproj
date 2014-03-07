@@ -34,7 +34,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <PlatformTarget>AnyCPU</PlatformTarget>
+    <PlatformTarget>x86</PlatformTarget>
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
@@ -47,12 +47,11 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="Gurobi56.NET">
-      <HintPath>Z:\gurobi562\win32\bin\Gurobi56.NET.dll</HintPath>
+      <HintPath>..\..\..\..\..\..\gurobi562\win32\bin\Gurobi56.NET.dll</HintPath>
     </Reference>
     <Reference Include="MatrixInterf, Version=2.0.5.0, Culture=neutral, PublicKeyToken=1fa71b5ffec10e32, processorArchitecture=MSIL">
       <Private>False</Private>
     </Reference>
-    <Reference Include="Microsoft.Solver.Foundation" />
     <Reference Include="Microsoft.VisualC.STLCLR" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework">

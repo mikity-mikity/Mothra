@@ -14,7 +14,7 @@
     <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
+    <PlatformTarget>x86</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -37,9 +37,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Gurobi56.NET">
-      <HintPath>Z:\gurobi562\win32\bin\Gurobi56.NET.dll</HintPath>
+      <HintPath>..\..\..\..\..\..\gurobi562\win32\bin\Gurobi56.NET.dll</HintPath>
     </Reference>
-    <Reference Include="Microsoft.Solver.Foundation" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Drawing" />
