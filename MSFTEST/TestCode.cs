@@ -22,7 +22,7 @@ class qcp_cs
     void visualize()
     {
     }
-    static void Main()
+    unsafe static void Main()
     {
         var form = new Form();
         form.Show();
@@ -37,8 +37,8 @@ class qcp_cs
         var g = pb.CreateGraphics();
         try
         {
-            int n = 31;
-            int m = 31;
+            int n = 11;
+            int m = 11;
             int nParticles = n * m;
             double[] X=new double[nParticles], Y=new double[nParticles], Z=new double[nParticles];
             for (int i = 0; i < m; i++)
@@ -117,17 +117,30 @@ class qcp_cs
                 Q[i, i] = 1;
             }
             //Create Coefficient matrix
-            double[,]D=new double[nParticles,nParticles];
-            for(int i=0;i<nParticles;i++)
+            double[,] D = new double[nParticles, nParticles];
+
+            fixed (double* _ptr1 = &C[0, 0], _ptr2 = &Q[0, 0])
             {
-                for(int j=0;j<nParticles;j++)
+                double* ptr1 = _ptr1;
+                double* ptr2 = _ptr2;
+                double* ptr3 = _ptr1;
+                for (int i = 0; i < nParticles; i++)
                 {
-                    double val=0;
-                    for(int k=0;k<nCbls;k++)
+                    for (int j = 0; j < nParticles; j++)
                     {
-                         val+=C[k,i]*Q[k,k]*C[k,j];
+                        ptr1 = _ptr1 + i;
+                        ptr3 = _ptr1 + j;
+                        double val = 0;
+                        ptr2 = _ptr2;
+                        for (int k = 0; k < nCbls; k++)
+                        {
+                            val += *ptr1 * *ptr2 * *ptr3;
+                            ptr1 += nParticles;
+                            ptr2 += 1 + nCbls;
+                            ptr3 += nParticles;
+                        }
+                        D[i,j] = val;
                     }
-                    D[i,j]=val;
                 }
             }
             //Force
@@ -141,7 +154,7 @@ class qcp_cs
             f[(n * m - 1) / 2 + (n * m - 1) / 4] = 20;
 
             GRBEnv env = new GRBEnv("qcp.log");
-            
+            env.Set(GRB.IntParam.Threads, 4);
             GRBModel model = new GRBModel(env);
             double[] lb = new double[nParticles];
             double[] ub = new double[nParticles];
@@ -191,6 +204,9 @@ class qcp_cs
                 cond.AddTerm(1, vars[i], vars[i]);
             }
             model.AddQConstr(cond, GRB.LESS_EQUAL, 100, null);
+            model.Tune();
+            env.WriteParams("Gurobi.Params");
+            //model.Write("Gurobi.env");
             model.Optimize();
             if (model.Get(GRB.IntAttr.Status) == GRB.Status.OPTIMAL)
             {
@@ -198,6 +214,7 @@ class qcp_cs
                     Z[j] = vars[j].Get(GRB.DoubleAttr.X);
             }
             visualize();
+            
             Console.ReadKey();
             model.Dispose();
             env.Dispose();

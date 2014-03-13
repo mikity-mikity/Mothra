@@ -13,27 +13,32 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 
-namespace mikity.visualize
+namespace Mothra.UI
 {
     /// <summary>
-    /// Plot.xaml の相互作用ロジック
+    /// newButton.xaml の相互作用ロジック
     /// </summary>
-    public partial class DT : UserControl
+    public partial class newButton : UserControl
     {
-        private double dt=0.2;
-        public DT()
+        public Action function=null;
+        public newButton()
         {
             InitializeComponent();
-            Default.IsChecked=true;
         }
-        public double getDt()
+        public string Text
         {
-            return dt;
+            set
+            {
+                this.button1.Content = value;
+            }
+            get
+            {
+                return (string)this.button1.Content;
+            }
         }
-
-        private void RadioButton_Checked(object sender, RoutedEventArgs e)
+        private void button_Click(object sender, RoutedEventArgs e)
         {
-            dt = double.Parse((string)((RadioButton)sender).Content);
+            if(function!=null)function();
         }
     }
 }

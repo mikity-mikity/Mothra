@@ -12,14 +12,14 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 
-namespace mikity.visualize
+namespace Mothra.UI
 {
     /// <summary>
     /// flag.xaml の相互作用ロジック
     /// </summary>
-    public partial class togglebutton : UserControl
+    public partial class toggleButton : UserControl
     {
-        public togglebutton()
+        public toggleButton()
         {
             InitializeComponent();
         }
@@ -41,7 +41,7 @@ namespace mikity.visualize
                 return (bool)this.button1.IsChecked;
             }
         }
-        public static implicit operator bool(mikity.visualize.togglebutton b)
+        public static implicit operator bool(Mothra.UI.toggleButton b)
         {
             return b.value;
         }

@@ -1,8 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2012
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Minilla", "Kapybara\Kapybara.vcxproj", "{683E8AE0-2636-4896-8F69-1D0AEE362CBB}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minilla3D", "Kapybara3D\Minilla3D.csproj", "{9E51A541-9813-42A6-BEC3-AE7CF3E85B8A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FigureUI", "FigureUI\FigureUI.csproj", "{22D8C56B-1E72-4413-AC41-C131D40F4FAD}"
@@ -25,25 +23,6 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{683E8AE0-2636-4896-8F69-1D0AEE362CBB}.Debug|Any CPU.ActiveCfg = Debug|Win32
-		{683E8AE0-2636-4896-8F69-1D0AEE362CBB}.Debug|Mixed Platforms.ActiveCfg = Debug|Win32
-		{683E8AE0-2636-4896-8F69-1D0AEE362CBB}.Debug|Mixed Platforms.Build.0 = Debug|Win32
-		{683E8AE0-2636-4896-8F69-1D0AEE362CBB}.Debug|Win32.ActiveCfg = Debug|Win32
-		{683E8AE0-2636-4896-8F69-1D0AEE362CBB}.Debug|Win32.Build.0 = Debug|Win32
-		{683E8AE0-2636-4896-8F69-1D0AEE362CBB}.Debug|x64.ActiveCfg = Debug|x64
-		{683E8AE0-2636-4896-8F69-1D0AEE362CBB}.Debug|x64.Build.0 = Debug|x64
-		{683E8AE0-2636-4896-8F69-1D0AEE362CBB}.Debug|x86.ActiveCfg = Debug|Win32
-		{683E8AE0-2636-4896-8F69-1D0AEE362CBB}.Debug|x86.Build.0 = Debug|Win32
-		{683E8AE0-2636-4896-8F69-1D0AEE362CBB}.Release|Any CPU.ActiveCfg = Release|Win32
-		{683E8AE0-2636-4896-8F69-1D0AEE362CBB}.Release|Any CPU.Build.0 = Release|Win32
-		{683E8AE0-2636-4896-8F69-1D0AEE362CBB}.Release|Mixed Platforms.ActiveCfg = Release|Win32
-		{683E8AE0-2636-4896-8F69-1D0AEE362CBB}.Release|Mixed Platforms.Build.0 = Release|Win32
-		{683E8AE0-2636-4896-8F69-1D0AEE362CBB}.Release|Win32.ActiveCfg = Release|Win32
-		{683E8AE0-2636-4896-8F69-1D0AEE362CBB}.Release|Win32.Build.0 = Release|Win32
-		{683E8AE0-2636-4896-8F69-1D0AEE362CBB}.Release|x64.ActiveCfg = Release|x64
-		{683E8AE0-2636-4896-8F69-1D0AEE362CBB}.Release|x64.Build.0 = Release|x64
-		{683E8AE0-2636-4896-8F69-1D0AEE362CBB}.Release|x86.ActiveCfg = Release|Win32
-		{683E8AE0-2636-4896-8F69-1D0AEE362CBB}.Release|x86.Build.0 = Release|Win32
 		{9E51A541-9813-42A6-BEC3-AE7CF3E85B8A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{9E51A541-9813-42A6-BEC3-AE7CF3E85B8A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9E51A541-9813-42A6-BEC3-AE7CF3E85B8A}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU

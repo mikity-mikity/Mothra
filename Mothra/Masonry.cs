@@ -8,6 +8,7 @@ using System.IO;
 using System.Reflection;
 using Gurobi;
 using Minilla3D.Elements;
+using Mothra.UI;
 namespace mikity.ghComponents
 {
 
@@ -18,7 +19,7 @@ namespace mikity.ghComponents
     {
         Transform[] XZ;
         Transform[] XZ2;
-
+        ControlBox myControlBox = new ControlBox();
         
         Rhino.Geometry.NurbsSurface inputNurbs, xyNurbs;
         NurbsSurface[] airyNurbs;
@@ -69,14 +70,7 @@ namespace mikity.ghComponents
         }
         void timer_Tick(object sender, EventArgs e)
         {
-            if (__update)
-            {
-                __update = false;
-                update();
-                this.ExpirePreview(true);
-            }
         }
-        //System.Windows.Forms.Timer timer;
         public override void AddedToDocument(Grasshopper.Kernel.GH_Document document)
         {
             base.AddedToDocument(document);
@@ -84,6 +78,16 @@ namespace mikity.ghComponents
             timer.Tick += timer_Tick;
             timer.Enabled = true;
             timer.Interval = 30;
+            myControlBox.Show();
+            myControlBox.setCompute(() =>
+            {
+                if (__update)
+                {
+                    __update = false;
+                    update();
+                    this.ExpirePreview(true);
+                }
+            });
         }
         bool isBoundary(int n)
         {
@@ -142,8 +146,9 @@ namespace mikity.ghComponents
             try
             {
                 ////////////////////////////GUROBI///////////////////
-                GRBEnv env = new GRBEnv("qcp.log");
-                env.Set(GRB.IntParam.DualReductions, 0);
+                GRBEnv env = new GRBEnv("c:\\qcp.log");
+                env.Set(GRB.IntParam.Threads, 4);
+                //env.Set(GRB.IntParam.DualReductions, 0);
                 GRBModel model = new GRBModel(env);
                 double[] lb = new double[nU * nV];
                 double[] ub = new double[nU * nV];

@@ -42,6 +42,8 @@ namespace Minilla3D.Elements
 		double[,] invMetric;
 		double[,] refInvMetric;
         public double[,][] gradient;
+        public double[,][] gradient2;
+
         public double[][] tmpGradient =new double[3][];
         public double[,] tmpHessian;
         public double[] edge;
@@ -93,6 +95,7 @@ namespace Minilla3D.Elements
             SPK = new double[elemDim, elemDim];
             Cauchy = new double[elemDim, elemDim];
             gradient = new double[elemDim, elemDim][];
+            gradient2 = new double[elemDim, elemDim][];
             tmpGradient[0] = new double[nNode];
             tmpGradient[1] = new double[nNode];
             tmpGradient[2] = new double[nNode];
@@ -102,6 +105,7 @@ namespace Minilla3D.Elements
                 for (int j = 0; j < elemDim; j++)
                 {
                     gradient[i, j] = new double[nNode];
+                    gradient2[i, j] = new double[nNode];
                 }
             }
             weight = 1.0;
@@ -317,6 +321,23 @@ namespace Minilla3D.Elements
                         {
                             gradient[m, n][k]-=Gamma[m, n, i] * C[i, 2, k * 3 + 2];
                         }
+                    }
+                }
+            }
+            //Raising index
+            double[,] tmp = new double[elemDim, elemDim];
+            for (int k = 0; k < nNode; k++)
+            {
+                for (int m = 0; m < elemDim; m++)
+                {
+                    for (int n = 0; n < elemDim; n++)
+                    {
+                        double val = 0;
+                        for (int s = 0; s < elemDim; s++)
+                        {
+                            val += gradient[m, s][k] * invMetric[s, n];
+                        }
+                        gradient2[m, n][k] = val;
                     }
                 }
             }

@@ -11,15 +11,19 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 
-namespace mikity.visualize
+namespace Mothra.UI
 {
     /// <summary>
     /// FigureUI.xaml の相互作用ロジック
     /// </summary>
-    public partial class FigureUI3 : Window
+    public partial class ControlBox : Window
     {
         public System.Collections.Generic.List<mikity.visualize.slider> listSlider;
-        public FigureUI3()
+        public void setCompute(Action func)
+        {
+            Compute.function=func;
+        }
+        public ControlBox()
         {
             InitializeComponent();
             listSlider = new System.Collections.Generic.List<mikity.visualize.slider>();
