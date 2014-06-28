@@ -7,9 +7,8 @@ using Rhino.Geometry;
 using System.IO;
 using System.Reflection;
 using Gurobi;
-using Microsoft.SolverFoundation.Common;
-using Microsoft.SolverFoundation.Solvers;
 using Minilla3D.Elements;
+using Mothra.UI;
 namespace mikity.ghComponents
 {
 
@@ -18,14 +17,18 @@ namespace mikity.ghComponents
     /// </summary>
     public class Mothra : Grasshopper.Kernel.GH_Component
     {
+        Transform[] XZ;
+        Transform[] XZ2;
+        ControlBox myControlBox = new ControlBox();
         
-        Rhino.Geometry.NurbsSurface inputNurbs, airyNurbs, xyNurbs,outputNurbs;
-        Minilla3D.Objects.masonry myMasonry = new Minilla3D.Objects.masonry();
+        Rhino.Geometry.NurbsSurface inputNurbs, xyNurbs;
+        NurbsSurface[] airyNurbs;
+        NurbsSurface[] outputNurbs;
+        Minilla3D.Objects.masonry[] myMasonry;
         double[,] x;
         double[,] Force=null;
         bool initialized = false;
         int nU, nV;
-        List<Guid> fixedPointGuids = null;
         Rhino.Geometry.Mesh alternativeMesh = null;
         List<int> boundaryIndex=null;
         bool __update = false;
@@ -67,68 +70,24 @@ namespace mikity.ghComponents
         }
         void timer_Tick(object sender, EventArgs e)
         {
-            if (__update)
-            {
-                __update = false;
-                update();
-                this.ExpirePreview(true);
-            }
         }
-        //System.Windows.Forms.Timer timer;
         public override void AddedToDocument(Grasshopper.Kernel.GH_Document document)
         {
             base.AddedToDocument(document);
-            Rhino.RhinoDoc.ReplaceRhinoObject += RhinoDoc_ReplaceRhinoObject;
             timer = new System.Windows.Forms.Timer();
             timer.Tick += timer_Tick;
             timer.Enabled = true;
             timer.Interval = 30;
-        }
-        public override void RemovedFromDocument(Grasshopper.Kernel.GH_Document document)
-        {
-            base.RemovedFromDocument(document);
-            deleteFixedPoints();
-        }
-        public override void DocumentContextChanged(Grasshopper.Kernel.GH_Document document, Grasshopper.Kernel.GH_DocumentContext context)
-        {
-            if (context == Grasshopper.Kernel.GH_DocumentContext.Unloaded)
+            myControlBox.Show();
+            myControlBox.setCompute(() =>
             {
-                deleteFixedPoints();
-            }
-            base.DocumentContextChanged(document, context);
-        }
-        void RhinoDoc_ReplaceRhinoObject(object sender, Rhino.DocObjects.RhinoReplaceObjectEventArgs e)
-        {
-            if (initialized && fixedPointGuids != null)
-            {
-                for (int i = 0; i < nV; i++)
+                if (__update)
                 {
-                    for (int j = 0; j < nU; j++)
-                    {
-                        Guid gi = fixedPointGuids[i*nU+j];
-                        if (e.ObjectId.CompareTo(gi) == 0)
-                        {
-                            var PO = e.NewRhinoObject as Rhino.DocObjects.PointObject;
-                            var P1 = PO.PointGeometry.Location;
-                            var P2 = airyNurbs.Points.GetControlPoint(j, i).Location;
-                            if (P1.X != P2.X || P1.Y != P2.Y)
-                            {
-                                Rhino.RhinoDoc.ActiveDoc.Objects.Replace(gi, new Rhino.Geometry.Point3d(P2.X, P2.Y, P1.Z));
-                                airyNurbs.Points.SetControlPoint(j, i, new Rhino.Geometry.ControlPoint(P2.X, P2.Y, P1.Z));
-                                __update = true;
-//                                this.ExpirePreview(true);
-                                return;
-                            }else
-                            {
-                                airyNurbs.Points.SetControlPoint(j, i, new Rhino.Geometry.ControlPoint(P1));
-                                __update = true;
-//                                this.ExpirePreview(true);
-                                return;
-                            }
-                        }
-                    }
+                    __update = false;
+                    update();
+                    this.ExpirePreview(true);
                 }
-            }
+            });
         }
         bool isBoundary(int n)
         {
@@ -144,7 +103,7 @@ namespace mikity.ghComponents
         public Rhino.Geometry.Plane[] cuttingPlane=new Plane[4];
         public void update()
         {
-            Nurbs2x(airyNurbs, x);
+            Nurbs2x(airyNurbs[0], x);
             double norm = 0;
             double minZ = Double.MaxValue;
             for (int i = 0; i < nU * nV; i++)
@@ -164,25 +123,32 @@ namespace mikity.ghComponents
             {
                 x[i, 2] /= norm/500;
             }            
-            x2Nurbs(x, airyNurbs);
-            myMasonry.setupNodesFromList(x);
-            myMasonry.precompute();
-            myMasonry.computeGlobalCoord();
-            int nConstraints2 = myMasonry.totalNumberOfIconst(boundary);
-            int nConstraints = myMasonry.totalNumberOfBconst();
-            ShoNS.Array.SparseDoubleArray jacobian = new SparseDoubleArray(nConstraints, nU * nV);
-            ShoNS.Array.DoubleArray residual = new DoubleArray(nConstraints, 1);
+            x2Nurbs(x, airyNurbs[0]);
+            int nConstraints = 0;
+            int nConstraints2 = 0;
+            ShoNS.Array.SparseDoubleArray jacobian=null;
+            ShoNS.Array.DoubleArray residual=null;
+            ShoNS.Array.SparseDoubleArray jacobianH=null;
+            foreach (var v in myMasonry)
+            {
+                v.setupNodesFromList(x);
+                v.precompute();
+                v.computeGlobalCoord();
+                nConstraints2 = v.totalNumberOfIconst(boundary);
+                nConstraints = v.totalNumberOfBconst();
+                jacobian = new SparseDoubleArray(nConstraints, nU * nV);
+                residual = new DoubleArray(nConstraints, 1);
             
-            ShoNS.Array.SparseDoubleArray jacobianH = new SparseDoubleArray(nConstraints2, nU * nV);
-            myMasonry.GetJacobianOfCurvature(jacobianH,boundary);
-            
-            myMasonry.getJacobian(jacobian);
-            
+                jacobianH = new SparseDoubleArray(nConstraints2, nU * nV);
+                v.GetJacobianOfCurvature(jacobianH, boundary);
+                v.getJacobian(jacobian);
+            }
             try
             {
                 ////////////////////////////GUROBI///////////////////
-                GRBEnv env = new GRBEnv("qcp.log");
-                env.Set(GRB.IntParam.DualReductions, 0);
+                GRBEnv env = new GRBEnv("c:\\qcp.log");
+                env.Set(GRB.IntParam.Threads, 4);
+                //env.Set(GRB.IntParam.DualReductions, 0);
                 GRBModel model = new GRBModel(env);
                 double[] lb = new double[nU * nV];
                 double[] ub = new double[nU * nV];
@@ -208,18 +174,9 @@ namespace mikity.ghComponents
                 lb[nU * nV - 1] = 500;
                 ub[nU * nV - 1] = 500;
 
-                //lb[(nU / 2) + (nV / 2) * nU-1] = 0;
-                //ub[(nU / 2) + (nV / 2) * nU-1] = 0;
-                lb[28] = 0;
-                ub[28] = 0;
-                lb[29] = 0;
-                ub[29] = 0;
-                lb[36] = 0;
-                ub[36] = 0;
-                lb[37] = 0;
-                ub[37] = 0;
                 GRBVar[] vars = model.AddVars(lb, ub, null, type, name);
                 model.Update();
+                GRBVar[][] planeVars=null;
                 
                 
                 lb = new double[nConstraints2];
@@ -371,7 +328,7 @@ namespace mikity.ghComponents
                 else
                 {
                     //Plane variables
-                    GRBVar[][] planeVars = new GRBVar[4][];
+                    planeVars = new GRBVar[4][];
                     for (int n = 0; n < 4; n++)
                     {
                         //z(x,y)=-D-Ax-By
@@ -404,14 +361,17 @@ namespace mikity.ghComponents
                     slackVars[1] = new List<GRBVar>();
                     slackVars[2] = new List<GRBVar>();
                     slackVars[3] = new List<GRBVar>();
-                    var tE = myMasonry.topEdge;
-                    var lE = myMasonry.leftEdge;
-                    var rE = myMasonry.rightEdge;
-                    var bE = myMasonry.bottomEdge;
-                    nConstraints=myMasonry.totalNumbrOfTopEdgeIntPoint();
+                    var tE = myMasonry[0].topEdge;
+                    var lE = myMasonry[0].leftEdge;
+                    var rE = myMasonry[0].rightEdge;
+                    var bE = myMasonry[0].bottomEdge;
+                    nConstraints=myMasonry[0].totalNumbrOfTopEdgeIntPoint();
                     jacobian = new SparseDoubleArray(nConstraints, nU * nV);
-                    myMasonry.GetJacobianOfTopEdge(jacobian);
-                    count=0;
+                    foreach (var v in myMasonry)
+                    {
+                        v.GetJacobianOfTopEdge(jacobian);
+                    }
+                    count = 0;
                     for (int i = 0; i < tE.Count; i++)
                     {
                         var e = tE[i];
@@ -444,9 +404,12 @@ namespace mikity.ghComponents
                         }
                     }
                     
-                    nConstraints = myMasonry.totalNumbrOfBottomEdgeIntPoint();
+                    nConstraints = myMasonry[0].totalNumbrOfBottomEdgeIntPoint();
                     jacobian = new SparseDoubleArray(nConstraints, nU * nV);
-                    myMasonry.GetJacobianOfBottomEdge(jacobian);
+                    foreach (var v in myMasonry)
+                    {
+                        v.GetJacobianOfBottomEdge(jacobian);
+                    }
                     count = 0;
                     for (int i = 0; i < bE.Count; i++)
                     {
@@ -480,9 +443,12 @@ namespace mikity.ghComponents
                         }
                     }
                     
-                    nConstraints = myMasonry.totalNumbrOfLeftEdgeIntPoint();
+                    nConstraints = myMasonry[0].totalNumbrOfLeftEdgeIntPoint();
                     jacobian = new SparseDoubleArray(nConstraints, nU * nV);
-                    myMasonry.GetJacobianOfLeftEdge(jacobian);
+                    foreach (var v in myMasonry)
+                    {
+                        v.GetJacobianOfLeftEdge(jacobian);
+                    }
                     count = 0;
                     for (int i = 0; i < lE.Count; i++)
                     {
@@ -517,9 +483,12 @@ namespace mikity.ghComponents
                     }
                     
                     
-                    nConstraints = myMasonry.totalNumbrOfRightEdgeIntPoint();
+                    nConstraints = myMasonry[0].totalNumbrOfRightEdgeIntPoint();
                     jacobian = new SparseDoubleArray(nConstraints, nU * nV);
-                    myMasonry.GetJacobianOfRightEdge(jacobian);
+                    foreach (var v in myMasonry)
+                    {
+                        v.GetJacobianOfRightEdge(jacobian);
+                    }
                     count = 0;
                     for (int i = 0; i < rE.Count; i++)
                     {
@@ -599,45 +568,85 @@ namespace mikity.ghComponents
                             break;
 
                     }
-                    for (int j = 0; j < nU * nV; j++)
+                }
+                int count2 = 0;
+                for (int s = 1; s < nV - 1; s++)
+                {
+                    for (int t = 1; t < nU - 1; t++,count2++)
                     {
-                        x[j, 2] = vars[j].Get(GRB.DoubleAttr.X);
-                    }
-                    for (int i = 0; i < 4; i++)
-                    {
-                        double AA = planeVars[i][0].Get(GRB.DoubleAttr.X);
-                        double BB = planeVars[i][1].Get(GRB.DoubleAttr.X);
-                        double DD = planeVars[i][2].Get(GRB.DoubleAttr.X);
-                        double Norm = Math.Sqrt(AA * AA + BB * BB + 1);
-                        cuttingPlane[i] = new Plane(AA/Norm, BB/Norm, 1.0/Norm, DD/Norm);
-                        switch (i)
+                        lb = new double[nU * nV];
+                        ub = new double[nU * nV];
+                        for (int i = 0; i < nV; i++)
                         {
-                            case 0:
-                                foreach (var e in myMasonry.topEdge)
-                                {
-                                    e.setPlane(AA, BB, 1, DD);
-                                }
-                                break;
-                            case 1:
-                                foreach (var e in myMasonry.bottomEdge)
-                                {
-                                    e.setPlane(AA, BB, 1, DD);
-                                }
-                                break;
-                            case 2:
-                                foreach (var e in myMasonry.leftEdge)
-                                {
-                                    e.setPlane(AA, BB, 1, DD);
-                                }
-                                break;
-                            case 3:
-                                foreach (var e in myMasonry.rightEdge)
-                                {
-                                    e.setPlane(AA, BB, 1, DD);
-                                }
-                                break;
+                            for (int j = 0; j < nU; j++)
+                            {
+                                ub[j + i * nU] = -GRB.INFINITY;
+                                ub[j + i * nU] = GRB.INFINITY;
+                            }
                         }
+                        lb[0] = 500;
+                        ub[0] = 500;
+                        lb[nU - 1] = 500;
+                        ub[nU - 1] = 500;
+                        lb[nU * nV - nU] = 500;
+                        ub[nU * nV - nU] = 500;
+                        lb[nU * nV - 1] = 500;
+                        ub[nU * nV - 1] = 500;
 
+                        lb[t + s * nU] = 0;
+                        ub[t + s * nU] = 0;
+                        model.Set(GRB.DoubleAttr.UB, vars, ub);
+                        model.Set(GRB.DoubleAttr.LB, vars, lb);
+                        model.Optimize();
+                        /*for (int j = 0; j < nU * nV; j++)
+                        {
+                            x[j, 2] = vars[j].Get(GRB.DoubleAttr.X);
+                        }*/
+                        var f=model.Get(GRB.DoubleAttr.X, vars);
+                        for (int j = 0; j < nU * nV; j++)
+                        {
+                            x[j, 2] = f[j];
+                        }
+                        x2Nurbs(x, airyNurbs[count2]);
+                        if (boundary)
+                        {
+                            for (int i = 0; i < 4; i++)
+                            {
+                                double AA = planeVars[i][0].Get(GRB.DoubleAttr.X);
+                                double BB = planeVars[i][1].Get(GRB.DoubleAttr.X);
+                                double DD = planeVars[i][2].Get(GRB.DoubleAttr.X);
+                                double Norm = Math.Sqrt(AA * AA + BB * BB + 1);
+                                cuttingPlane[i] = new Plane(AA / Norm, BB / Norm, 1.0 / Norm, DD / Norm);
+                                switch (i)
+                                {
+                                    case 0:
+                                        foreach (var e in myMasonry[count2].topEdge)
+                                        {
+                                            e.setPlane(AA, BB, 1, DD);
+                                        }
+                                        break;
+                                    case 1:
+                                        foreach (var e in myMasonry[count2].bottomEdge)
+                                        {
+                                            e.setPlane(AA, BB, 1, DD);
+                                        }
+                                        break;
+                                    case 2:
+                                        foreach (var e in myMasonry[count2].leftEdge)
+                                        {
+                                            e.setPlane(AA, BB, 1, DD);
+                                        }
+                                        break;
+                                    case 3:
+                                        foreach (var e in myMasonry[count2].rightEdge)
+                                        {
+                                            e.setPlane(AA, BB, 1, DD);
+                                        }
+                                        break;
+                                }
+
+                            }
+                        }
                     }
                 }
                 model.Dispose();
@@ -649,54 +658,182 @@ namespace mikity.ghComponents
                 AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, "GUROBI ERROR!" + e.ErrorCode + ". " + e.Message);
                 return;
             }
-            x2Nurbs(x, airyNurbs);
-            createAiryPoints(airyNurbs);
-            myMasonry.setupNodesFromList(x);
-            myMasonry.precompute();
-            myMasonry.computeAiryFunction();
-            myMasonry.giveEdgeTension(0);
-            if (boundary)
+            for (int s = 0; s < (nU - 2) * (nV - 2); s++)
             {
-                myMasonry.computeAngle();
-            }
-            Force = new double[nU * nV, 3];
+                Nurbs2x(airyNurbs[s],x);
+                myMasonry[s].setupNodesFromList(x);
+                myMasonry[s].precompute();
+                myMasonry[s].computeAiryFunction();
+                myMasonry[s].giveEdgeTension(0);
+                if (boundary)
+                {
+                    myMasonry[s].computeAngle();
+                }
+                Force = new double[nU * nV, 3];
 
-            //Solve
-            myMasonry.computeEigenVectors();
-            Nurbs2x(xyNurbs, x);
-            myMasonry.setupNodesFromList(x);
-            myMasonry.computeGlobalCoord();
-            ShoNS.Array.SparseDoubleArray hess = new SparseDoubleArray(nU * nV * 3, nU * nV * 3);
+                //Solve
+                myMasonry[s].computeEigenVectors();
+                Nurbs2x(xyNurbs, x);
+                myMasonry[s].setupNodesFromList(x);
+                myMasonry[s].computeGlobalCoord();
+                ShoNS.Array.SparseDoubleArray hess = new SparseDoubleArray(nU * nV * 3, nU * nV * 3);
             
-            myMasonry.computeHessian();
-            myMasonry.getHessian(hess);
-            Nurbs2x(outputNurbs, x);
-            int nParticles = nU * nV;
-            //Current configuration
-            var origX = DoubleArray.Zeros(nParticles*3, 1);
-            for (int i = 0; i < nParticles; i++)
-            {
-                origX[i * 3 + 0, 0] = x[i, 0];
-                origX[i * 3 + 1, 0] = x[i, 1];
-                origX[i * 3 + 2, 0] = x[i, 2];
-            }
-            List<int> shift = new List<int>();
-            int T1 = 0;
-            int T2 = 0;
-            for (int i = 0; i < nParticles; i++)
-            {
-                shift.Add(i);
-            }
-            int C1 = 0,C2=0;
-            if (boundary)
-            {
+                myMasonry[s].computeHessian();
+                myMasonry[s].getHessian(hess);
+
+
+                Nurbs2x(xyNurbs, x);
+                int nParticles = nU * nV;
+                //Current configuration
+                var origX = DoubleArray.Zeros(nParticles*3, 1);
+                for (int i = 0; i < nParticles; i++)
+                {
+                    origX[i * 3 + 0, 0] = x[i, 0];
+                    origX[i * 3 + 1, 0] = x[i, 1];
+                    origX[i * 3 + 2, 0] = x[i, 2];
+                }
+                List<int> shift = new List<int>();
+                int T1 = 0;
+                int T2 = 0;
+                for (int i = 0; i < nParticles; i++)
+                {
+                    shift.Add(i);
+                }
+                int C1 = 0,C2=0;
+                if (boundary)
+                {
+                    T1 = (nParticles - 4) * 3 - 1;
+                    T2 = nParticles * 3 - 1;
+                    C1 = 0;
+                    C2 = nParticles - 4;
+                    for (int i = 0; i < nParticles; i++)
+                    {
+                        if (i == 0 || i == nU - 1 || i == nU * nV - nU || i == nU * nV - 1)
+                        {
+                            shift[i] = C2;
+                            C2++;
+                        }
+                        else
+                        {
+                            shift[i] = C1;
+                            C1++;
+                        }
+                    }
+
+                }
+                else
+                {
+                    T1 = (nParticles - boundaryIndex.Count()) * 3 - 1;
+                    T2 = nParticles * 3 - 1;
+                    C1 = 0;
+                    C2 = nParticles - boundaryIndex.Count();
+                    for (int i = 0; i < nParticles; i++)
+                    {
+                        if (isBoundary(i))
+                        {
+                            shift[i] = C2;
+                            C2++;
+                        }
+                        else
+                        {
+                            shift[i] = C1;
+                            C1++;
+                        }
+                    }
+                }
+                var shiftArray = new SparseDoubleArray(nParticles * 3, nParticles * 3);
+                for (int i = 0; i < nParticles; i++)
+                {
+                    shiftArray[i * 3, shift[i] * 3] = 1;
+                    shiftArray[i * 3 + 1, shift[i] * 3 + 1] = 1;
+                    shiftArray[i * 3 + 2, shift[i] * 3 + 2] = 1;
+                }
+                var ED = shiftArray.T.Multiply(hess) as SparseDoubleArray;
+                ED = ED.Multiply(shiftArray) as SparseDoubleArray;
+                var slice1 = new SparseDoubleArray(T1 + 1, T2 + 1);
+                var slice2 = new SparseDoubleArray(T2 + 1, T2 - T1);
+                for (int i = 0; i < T1 + 1; i++)
+                {
+                    slice1[i, i] = 1;
+                }
+                for (int i = 0; i < T2 - T1; i++)
+                {
+                    slice2[i + T1 + 1, i] = 1;
+                }
+                var DIB = (slice1.Multiply(ED) as SparseDoubleArray).Multiply(slice2) as SparseDoubleArray;
+                var DII = (slice1.Multiply(ED) as SparseDoubleArray).Multiply(slice1.T) as SparseDoubleArray;
+                var solver = new SparseLU(DII);
+                origX = shiftArray.T * origX;
+                var fixX = origX.GetSlice(T1 + 1, T2, 0, 0);
+                var B = -DIB * fixX;
+                var force = DoubleArray.Zeros(nParticles * 3, 1);
+                for(int i=0;i<nParticles;i++)
+                {
+                    force[i * 3 + 0, 0] = 0;
+                    force[i * 3 + 1, 0] = 0;
+                    force[i * 3 + 2, 0] = 0;
+                }
+                force = (shiftArray.T*force).GetSlice(0, T1, 0, 0);
+                B = B + force;
+                var dx = solver.Solve(B);
+
+                var ret = DoubleArray.Zeros(nParticles *3, 1);
+                for (int i = 0; i < T1 + 1; i++)
+                {
+                    ret[i, 0] = dx[i, 0];
+                }
+                for (int i = T1 + 1; i <= T2; i++)
+                {
+                    ret[i, 0] = fixX[i - T1 - 1, 0];
+                }
+                var xx = shiftArray * ret;
+                var F=hess* xx;
+                for (int i = 0; i < nParticles; i++)
+                {
+                    double Fx = F[i * 3 + 0, 0];
+                    double Fy = F[i * 3 + 1, 0];
+                    double Fz = F[i * 3 + 2, 0];
+
+                    if (/*!boundary&&*/(Fx * Fx + Fy * Fy + Fz * Fz) >0.01/* 0.01*/)
+                    {
+                        F[i * 3 + 0, 0] = Fx;
+                        F[i * 3 + 1, 0] = Fy;
+                        F[i * 3 + 2, 0] = Fz+1;
+                        Force[i, 0] = Fx;
+                        Force[i, 1] = Fy;
+                        Force[i, 2] = Fz+1;
+                    }
+                    else
+                    {
+                        F[i * 3 + 0, 0] = 0;
+                        F[i * 3 + 1, 0] = 0;
+                        F[i * 3 + 2, 0] = 0+1;
+                        Force[i, 0] = 0;
+                        Force[i, 1] = 0;
+                        Force[i, 2] = 0+1;
+                    }
+                }
+            
+            
+                origX = DoubleArray.Zeros(nParticles * 3, 1);
+                for (int i = 0; i < nParticles; i++)
+                {
+                    origX[i * 3 + 0, 0] = x[i, 0];
+                    origX[i * 3 + 1, 0] = x[i, 1];
+                    origX[i * 3 + 2, 0] = x[i, 2];
+                }
+                shift = new List<int>();
+                for (int i = 0; i < nParticles; i++)
+                {
+                    shift.Add(i);
+                }
                 T1 = (nParticles - 4) * 3 - 1;
                 T2 = nParticles * 3 - 1;
                 C1 = 0;
                 C2 = nParticles - 4;
                 for (int i = 0; i < nParticles; i++)
                 {
-                    if (i == 0 || i == nU - 1 || i == nU * nV - nU || i == nU * nV - 1)
+                    if (i==0 || i==nU-1|| i==nU*nV-nU || i==nU*nV-1)
                     {
                         shift[i] = C2;
                         C2++;
@@ -707,195 +844,93 @@ namespace mikity.ghComponents
                         C1++;
                     }
                 }
-
-            }
-            else
-            {
-                T1 = (nParticles - boundaryIndex.Count()) * 3 - 1;
-                T2 = nParticles * 3 - 1;
-                C1 = 0;
-                C2 = nParticles - boundaryIndex.Count();
+                shiftArray = new SparseDoubleArray(nParticles * 3, nParticles * 3);
                 for (int i = 0; i < nParticles; i++)
                 {
-                    if (isBoundary(i))
-                    {
-                        shift[i] = C2;
-                        C2++;
-                    }
-                    else
-                    {
-                        shift[i] = C1;
-                        C1++;
-                    }
+                    shiftArray[i * 3, shift[i] * 3] = 1;
+                    shiftArray[i * 3 + 1, shift[i] * 3 + 1] = 1;
+                    shiftArray[i * 3 + 2, shift[i] * 3 + 2] = 1;
                 }
-            }
-            var shiftArray = new SparseDoubleArray(nParticles * 3, nParticles * 3);
-            for (int i = 0; i < nParticles; i++)
-            {
-                shiftArray[i * 3, shift[i] * 3] = 1;
-                shiftArray[i * 3 + 1, shift[i] * 3 + 1] = 1;
-                shiftArray[i * 3 + 2, shift[i] * 3 + 2] = 1;
-            }
-            var ED = shiftArray.T.Multiply(hess) as SparseDoubleArray;
-            ED = ED.Multiply(shiftArray) as SparseDoubleArray;
-            var slice1 = new SparseDoubleArray(T1 + 1, T2 + 1);
-            var slice2 = new SparseDoubleArray(T2 + 1, T2 - T1);
-            for (int i = 0; i < T1 + 1; i++)
-            {
-                slice1[i, i] = 1;
-            }
-            for (int i = 0; i < T2 - T1; i++)
-            {
-                slice2[i + T1 + 1, i] = 1;
-            }
-            var DIB = (slice1.Multiply(ED) as SparseDoubleArray).Multiply(slice2) as SparseDoubleArray;
-            var DII = (slice1.Multiply(ED) as SparseDoubleArray).Multiply(slice1.T) as SparseDoubleArray;
-            var solver = new SparseLU(DII);
-            origX = shiftArray.T * origX;
-            var fixX = origX.GetSlice(T1 + 1, T2, 0, 0);
-            var B = -DIB * fixX;
-            var force = DoubleArray.Zeros(nParticles * 3, 1);
-            for(int i=0;i<nParticles;i++)
-            {
-                force[i * 3 + 0, 0] = 0;
-                force[i * 3 + 1, 0] = 0;
-                force[i * 3 + 2, 0] = 0;
-            }
-            force = (shiftArray.T*force).GetSlice(0, T1, 0, 0);
-            B = B + force;
-            var dx = solver.Solve(B);
 
-            var ret = DoubleArray.Zeros(nParticles *3, 1);
-            for (int i = 0; i < T1 + 1; i++)
-            {
-                ret[i, 0] = dx[i, 0];
-            }
-            for (int i = T1 + 1; i <= T2; i++)
-            {
-                ret[i, 0] = fixX[i - T1 - 1, 0];
-            }
-            var xx = shiftArray * ret;
-            var F=hess* xx;
-            for (int i = 0; i < nParticles; i++)
-            {
-                double Fx = F[i * 3 + 0, 0];
-                double Fy = F[i * 3 + 1, 0];
-                double Fz = F[i * 3 + 2, 0];
 
-                if (/*!boundary&&*/(Fx * Fx + Fy * Fy + Fz * Fz) >0.01/* 0.01*/)
+                ED = shiftArray.T.Multiply(hess) as SparseDoubleArray;
+                ED = ED.Multiply(shiftArray) as SparseDoubleArray;
+                slice1 = new SparseDoubleArray(T1 + 1, T2 + 1);
+                slice2 = new SparseDoubleArray(T2 + 1, T2 - T1);
+                for (int i = 0; i < T1 + 1; i++)
                 {
-                    F[i * 3 + 0, 0] = Fx;
-                    F[i * 3 + 1, 0] = Fy;
-                    F[i * 3 + 2, 0] = Fz+1;
-                    Force[i, 0] = Fx;
-                    Force[i, 1] = Fy;
-                    Force[i, 2] = Fz+1;
+                    slice1[i, i] = 1;
                 }
-                else
+                for (int i = 0; i < T2 - T1; i++)
                 {
-                    F[i * 3 + 0, 0] = 0;
-                    F[i * 3 + 1, 0] = 0;
-                    F[i * 3 + 2, 0] = 0+1;
-                    Force[i, 0] = 0;
-                    Force[i, 1] = 0;
-                    Force[i, 2] = 0+1;
+                    slice2[i + T1 + 1, i] = 1;
                 }
-            }
-            
-            
-            origX = DoubleArray.Zeros(nParticles * 3, 1);
-            for (int i = 0; i < nParticles; i++)
-            {
-                origX[i * 3 + 0, 0] = x[i, 0];
-                origX[i * 3 + 1, 0] = x[i, 1];
-                origX[i * 3 + 2, 0] = x[i, 2];
-            }
-            shift = new List<int>();
-            for (int i = 0; i < nParticles; i++)
-            {
-                shift.Add(i);
-            }
-            T1 = (nParticles - 4) * 3 - 1;
-            T2 = nParticles * 3 - 1;
-            C1 = 0;
-            C2 = nParticles - 4;
-            for (int i = 0; i < nParticles; i++)
-            {
-                if (i==0 || i==nU-1|| i==nU*nV-nU || i==nU*nV-1)
+                DIB = (slice1.Multiply(ED) as SparseDoubleArray).Multiply(slice2) as SparseDoubleArray;
+                DII = (slice1.Multiply(ED) as SparseDoubleArray).Multiply(slice1.T) as SparseDoubleArray;
+                solver = new SparseLU(DII);
+                origX = shiftArray.T * origX;
+                fixX = origX.GetSlice(T1 + 1, T2, 0, 0);
+                B = -DIB * fixX;
+                force = (shiftArray.T * F).GetSlice(0, T1, 0, 0);
+                B = B + force;
+                dx = solver.Solve(B);
+
+                ret = DoubleArray.Zeros(nParticles * 3, 1);
+                for (int i = 0; i < T1 + 1; i++)
                 {
-                    shift[i] = C2;
-                    C2++;
+                    ret[i, 0] = dx[i, 0];
                 }
-                else
+                for (int i = T1 + 1; i <= T2; i++)
                 {
-                    shift[i] = C1;
-                    C1++;
+                    ret[i, 0] = fixX[i - T1 - 1, 0];
                 }
-            }
-            shiftArray = new SparseDoubleArray(nParticles * 3, nParticles * 3);
-            for (int i = 0; i < nParticles; i++)
-            {
-                shiftArray[i * 3, shift[i] * 3] = 1;
-                shiftArray[i * 3 + 1, shift[i] * 3 + 1] = 1;
-                shiftArray[i * 3 + 2, shift[i] * 3 + 2] = 1;
-            }
-
-
-            ED = shiftArray.T.Multiply(hess) as SparseDoubleArray;
-            ED = ED.Multiply(shiftArray) as SparseDoubleArray;
-            slice1 = new SparseDoubleArray(T1 + 1, T2 + 1);
-            slice2 = new SparseDoubleArray(T2 + 1, T2 - T1);
-            for (int i = 0; i < T1 + 1; i++)
-            {
-                slice1[i, i] = 1;
-            }
-            for (int i = 0; i < T2 - T1; i++)
-            {
-                slice2[i + T1 + 1, i] = 1;
-            }
-            DIB = (slice1.Multiply(ED) as SparseDoubleArray).Multiply(slice2) as SparseDoubleArray;
-            DII = (slice1.Multiply(ED) as SparseDoubleArray).Multiply(slice1.T) as SparseDoubleArray;
-            solver = new SparseLU(DII);
-            origX = shiftArray.T * origX;
-            fixX = origX.GetSlice(T1 + 1, T2, 0, 0);
-            B = -DIB * fixX;
-            force = (shiftArray.T * F).GetSlice(0, T1, 0, 0);
-            B = B + force;
-            dx = solver.Solve(B);
-
-            ret = DoubleArray.Zeros(nParticles * 3, 1);
-            for (int i = 0; i < T1 + 1; i++)
-            {
-                ret[i, 0] = dx[i, 0];
-            }
-            for (int i = T1 + 1; i <= T2; i++)
-            {
-                ret[i, 0] = fixX[i - T1 - 1, 0];
-            }
-            xx = shiftArray * ret;
+                xx = shiftArray * ret;
             
 
             
             
-            for (int i = 0; i < nParticles; i++)
-            {   
-                x[i, 0] = xx[i * 3, 0];
-                x[i, 1] = xx[i * 3 + 1, 0];
-                x[i, 2] = xx[i * 3 + 2, 0];
+                for (int i = 0; i < nParticles; i++)
+                {   
+                    x[i, 0] = xx[i * 3, 0];
+                    x[i, 1] = xx[i * 3 + 1, 0];
+                    x[i, 2] = xx[i * 3 + 2, 0];
+                }
+                norm = 0;
+                for (int i = 0; i < nU * nV; i++)
+                {
+                    norm += x[i, 2] * x[i, 2];
+                }
+                norm = Math.Sqrt(norm);
+                if (boundary)
+                {
+                    norm = norm * 3;
+                }
+                for (int i = 0; i < nU * nV; i++)
+                {
+                    x[i, 2] /= norm / 750;
+                }            
+
+                x2Nurbs(x, outputNurbs[s]);
             }
-            x2Nurbs(x, outputNurbs);
+
         }
         public override void BakeGeometry(Rhino.RhinoDoc doc, Rhino.DocObjects.ObjectAttributes att, List<Guid> obj_ids)
         {
             Rhino.DocObjects.ObjectAttributes a2 = att.Duplicate();
             a2.LayerIndex = 1;
-            Guid id = doc.Objects.AddSurface(airyNurbs, a2);
-            obj_ids.Add(id);
             Rhino.DocObjects.ObjectAttributes a3 = att.Duplicate();
-            a2.LayerIndex = 2;
-            Guid id2 = doc.Objects.AddSurface(outputNurbs, a2);
-            obj_ids.Add(id2);
-            base.BakeGeometry(doc, att, obj_ids);
+            a3.LayerIndex = 2;
+            for (int s = (nU - 2) * (nV - 2) - 1; s >= 0; s--)
+            {
+                var aN = airyNurbs[s].Duplicate() as Surface;
+                aN.Transform(XZ2[s]);
+                var oN = outputNurbs[s].Duplicate() as Surface;
+                oN.Transform(XZ[s]);
+                Guid id = doc.Objects.AddSurface(aN, a2);
+                obj_ids.Add(id);
+                Guid id2 = doc.Objects.AddSurface(oN, a3);
+                obj_ids.Add(id2);            
+            }
         }
         public override void DrawViewportWires(Grasshopper.Kernel.IGH_PreviewArgs args)
         {
@@ -903,7 +938,7 @@ namespace mikity.ghComponents
             {
                 return;
             }
-            for (int i = 0; i < 4; i++)
+            /*for (int i = 0; i < 4; i++)
             {
                 double[] f = null;
                 if (cuttingPlane[i] != null)
@@ -919,147 +954,193 @@ namespace mikity.ghComponents
                     args.Display.DrawLine(P3, P4, System.Drawing.Color.LightCoral, 2);
                     args.Display.DrawLine(P4, P1, System.Drawing.Color.LightCoral, 2);
                 }
-            }
+            }*/
             if (boundary)
             {
-                var f = outputNurbs.IsoCurve(0, 0);
-                var g = outputNurbs.IsoCurve(1, 0);
-                var h = outputNurbs.IsoCurve(1, outputNurbs.Domain(0).Max);
-                var c = outputNurbs.IsoCurve(0, outputNurbs.Domain(1).Max);
-                args.Display.DrawCurve(f, System.Drawing.Color.Orange, 4);
-                args.Display.DrawCurve(g, System.Drawing.Color.Orange, 4);
-                args.Display.DrawCurve(h, System.Drawing.Color.Orange, 4);
-                args.Display.DrawCurve(c, System.Drawing.Color.Orange, 4);
+                for (int s = (nU - 2) * (nV - 2) - 1; s >= 0; s--)
+                {
+                    var f = outputNurbs[s].IsoCurve(0, 0);
+                    f.Transform(XZ[s]);
+                    var g = outputNurbs[s].IsoCurve(1, 0);
+                    g.Transform(XZ[s]);
+                    var h = outputNurbs[s].IsoCurve(1, outputNurbs[s].Domain(0).Max);
+                    h.Transform(XZ[s]);
+                    var c = outputNurbs[s].IsoCurve(0, outputNurbs[s].Domain(1).Max);
+                    c.Transform(XZ[s]);
+                    args.Display.DrawCurve(f, System.Drawing.Color.Orange, 4);
+                    args.Display.DrawCurve(g, System.Drawing.Color.Orange, 4);
+                    args.Display.DrawCurve(h, System.Drawing.Color.Orange, 4);
+                    args.Display.DrawCurve(c, System.Drawing.Color.Orange, 4);
+                }
             }
-            args.Display.DrawSurface(airyNurbs, System.Drawing.Color.Blue, 1);
-            args.Display.DrawSurface(outputNurbs, System.Drawing.Color.Red, 1);
-            args.Display.DrawSurface(xyNurbs, System.Drawing.Color.Green, 1);
+            if (XZ != null)
+            {
+                for (int s = (nU - 2) * (nV - 2) - 1; s >= 0; s--)
+                {
+                    var aN = airyNurbs[s].Duplicate() as Surface;
+                    aN.Transform(XZ2[s]);
+                    var oN = outputNurbs[s].Duplicate() as Surface;
+                    oN.Transform(XZ[s]);
+                    args.Display.DrawSurface(aN, System.Drawing.Color.Blue, 1);
+                    args.Display.DrawSurface(oN, System.Drawing.Color.Red, 1);
+                }
+            }
+//            args.Display.DrawSurface(outputNurbs[1], System.Drawing.Color.Blue, 1);
+//            args.Display.DrawSurface(xyNurbs, System.Drawing.Color.Green, 1);
             double[][] vec = new double[2][] { new double[3], new double[3] };
             double[] val = new double[2];
             double[] node=null;
-            double S = 500;
+            double S = 50;
             Nurbs2x(xyNurbs, x);
-            myMasonry.setupNodesFromList(x);
-            myMasonry.computeGlobalCoord();
-            foreach (var e in myMasonry.edgeList)
+            for (int s = (nU - 2) * (nV - 2) - 1; s >= 0; s--)
             {
-                for (int i = 0; i < e.nIntPoint; i++)
+                var v=myMasonry[s];
+                v.setupNodesFromList(x);
+                v.computeGlobalCoord();
+                /*foreach (var e in v.edgeList)
                 {
-                    double[] node2 = e.getIntPoint(i);
-                    args.Display.Draw2dText(e.intP[i].tension.ToString("00.00"), System.Drawing.Color.White, new Rhino.Geometry.Point3d(node2[0], node2[1], node2[2]), true);
-                }
-            }
-            
-            foreach (var e in myMasonry.elemList)
-            {
-/*                for (int i = 0; i < e.nIntPoint; i++)
-                {
-                    e.getEigenVectors(vec, val, i);
-                    node = e.getIntPoint(i);
-                    System.Drawing.Color color;
-                    double S1 = S * val[0];
-                    double S2 = S * val[1];
-                    if (val[0] > 0)
-                    { color = System.Drawing.Color.Cyan; }
-                    else { color = System.Drawing.Color.Magenta; }
-                    args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] + vec[0][0] * S1, node[1] + vec[0][1] * S1, node[2] + vec[0][2] * S1), color, 1);
-                    args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] - vec[0][0] * S1, node[1] - vec[0][1] * S1, node[2] - vec[0][2] * S1), color, 1);
-                    if (val[1] > 0)
-                    { color = System.Drawing.Color.Cyan; }
-                    else { color = System.Drawing.Color.Magenta; }
-                    args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] + vec[1][0] * S2, node[1] + vec[1][1] * S2, node[2] + vec[1][2] * S2), color, 1);
-                    args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] - vec[1][0] * S2, node[1] - vec[1][1] * S2, node[2] - vec[1][2] * S2), color, 1);
-
+                    for (int i = 0; i < e.nIntPoint; i++)
+                    {
+                        double[] node2 = e.getIntPoint(i);
+                        args.Display.Draw2dText(e.intP[i].tension.ToString("00.00"), System.Drawing.Color.White, new Rhino.Geometry.Point3d(node2[0], node2[1], node2[2]), true);
+                    }
                 }*/
-/*                for (int i = 0; i < e.nBIntPoint; i++)
-                {
-                    e.getBEigenVectors(vec, val, i);
-                    node = e.getBIntPoint(i);
-                    System.Drawing.Color color;
-                    double S1 = S * val[0];
-                    double S2 = S * val[1];
-                    if (val[0] > 0)
-                    { color = System.Drawing.Color.Cyan; }
-                    else { color = System.Drawing.Color.Magenta; }
-                    args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] + vec[0][0] * S1, node[1] + vec[0][1] * S1, node[2] + vec[0][2] * S1), color, 1);
-                    args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] - vec[0][0] * S1, node[1] - vec[0][1] * S1, node[2] - vec[0][2] * S1), color, 1);
-                    if (val[1] > 0)
-                    { color = System.Drawing.Color.Cyan; }
-                    else { color = System.Drawing.Color.Magenta; }
-                    args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] + vec[1][0] * S2, node[1] + vec[1][1] * S2, node[2] + vec[1][2] * S2), color, 1);
-                    args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] - vec[1][0] * S2, node[1] - vec[1][1] * S2, node[2] - vec[1][2] * S2), color, 1);
 
-                }*/ 
+                foreach (var e in v.elemList)
+                {
+                    for (int i = 0; i < e.nIntPoint; i++)
+                    {
+                        e.getEigenVectors(vec, val, i);
+                        node = e.getIntPoint(i);
+                        System.Drawing.Color color;
+                        double S1 = S * val[0];
+                        double S2 = S * val[1];
+                        if (val[0] > 0)
+                        { color = System.Drawing.Color.Cyan; }
+                        else { color = System.Drawing.Color.Magenta; }
+                        var P1=new Rhino.Geometry.Point3d(node[0], node[1], node[2]);
+                        P1.Transform(XZ[s]);
+                        var P2=new Rhino.Geometry.Point3d(node[0] + vec[0][0] * S1, node[1] + vec[0][1] * S1, node[2] + vec[0][2] * S1);
+                        P2.Transform(XZ[s]);                        
+                        args.Display.DrawLine(P1,P2 , color, 1);
+                        P1=new Rhino.Geometry.Point3d(node[0], node[1], node[2]);
+                        P1.Transform(XZ[s]);
+                        P2=new Rhino.Geometry.Point3d(node[0] - vec[0][0] * S1, node[1] - vec[0][1] * S1, node[2] - vec[0][2] * S1);
+                        P2.Transform(XZ[s]);
+                        args.Display.DrawLine(P1, P2, color, 1);
+                        if (val[1] > 0)
+                        { color = System.Drawing.Color.Cyan; }
+                        else { color = System.Drawing.Color.Magenta; }
+                        P1 = new Rhino.Geometry.Point3d(node[0], node[1], node[2]);
+                        P1.Transform(XZ[s]);
+                        P2 = new Rhino.Geometry.Point3d(node[0] + vec[1][0] * S2, node[1] + vec[1][1] * S2, node[2] + vec[1][2] * S2);
+                        P2.Transform(XZ[s]);
+                        args.Display.DrawLine(P1, P2, color, 1);
+                        P1 = new Rhino.Geometry.Point3d(node[0], node[1], node[2]);
+                        P1.Transform(XZ[s]);
+                        P2 = new Rhino.Geometry.Point3d(node[0] - vec[1][0] * S2, node[1] - vec[1][1] * S2, node[2] - vec[1][2] * S2);
+                        P2.Transform(XZ[s]);
+                        args.Display.DrawLine(P1, P2, color, 1);
+
+                    }
+                    for (int i = 0; i < e.nBIntPoint; i++)
+                    {
+                        e.getBEigenVectors(vec, val, i);
+                        node = e.getBIntPoint(i);
+                        System.Drawing.Color color;
+                        double S1 = S * val[0];
+                        double S2 = S * val[1];
+                        if (val[0] > 0)
+                        { color = System.Drawing.Color.Cyan; }
+                        else { color = System.Drawing.Color.Magenta; }
+                        var P1 = new Rhino.Geometry.Point3d(node[0], node[1], node[2]);
+                        P1.Transform(XZ[s]);
+                        var P2 = new Rhino.Geometry.Point3d(node[0] + vec[0][0] * S1, node[1] + vec[0][1] * S1, node[2] + vec[0][2] * S1);
+                        P2.Transform(XZ[s]);
+                        args.Display.DrawLine(P1, P2, color, 1);
+                        P1 = new Rhino.Geometry.Point3d(node[0], node[1], node[2]);
+                        P1.Transform(XZ[s]);
+                        P2 = new Rhino.Geometry.Point3d(node[0] - vec[0][0] * S1, node[1] - vec[0][1] * S1, node[2] - vec[0][2] * S1);
+                        P2.Transform(XZ[s]);
+                        args.Display.DrawLine(P1, P2, color, 1);
+                        if (val[1] > 0)
+                        { color = System.Drawing.Color.Cyan; }
+                        else { color = System.Drawing.Color.Magenta; }
+                        P1 = new Rhino.Geometry.Point3d(node[0], node[1], node[2]);
+                        P1.Transform(XZ[s]);
+                        P2 = new Rhino.Geometry.Point3d(node[0] + vec[1][0] * S2, node[1] + vec[1][1] * S2, node[2] + vec[1][2] * S2);
+                        P2.Transform(XZ[s]);
+                        args.Display.DrawLine(P1, P2, color, 1);
+                        P1 = new Rhino.Geometry.Point3d(node[0], node[1], node[2]);
+                        P1.Transform(XZ[s]);
+                        P2 = new Rhino.Geometry.Point3d(node[0] - vec[1][0] * S2, node[1] - vec[1][1] * S2, node[2] - vec[1][2] * S2);
+                        P2.Transform(XZ[s]);
+                        args.Display.DrawLine(P1, P2, color, 1);
+                    }
+                }
             }
             List<Rhino.Geometry.Point3d> xyP = new List<Point3d>();
             List<Rhino.Geometry.Point3d> outputP = new List<Point3d>();
             Nurbs2x(xyNurbs, x);
-            myMasonry.setupNodesFromList(x);
-            myMasonry.computeGlobalCoord();
-            foreach (var e in myMasonry.elemList)
+            foreach (var v in myMasonry)
             {
-                for (int i = 0; i < e.nIntPoint; i++)
+                v.setupNodesFromList(x);
+                v.computeGlobalCoord();
+                foreach (var e in v.elemList)
                 {
-                    var d = e.getIntPoint(i);
-                    var d2 = new Rhino.Geometry.Point3d(d[0], d[1], d[2]);
-                    xyP.Add(d2);
-                    args.Display.DrawPoint(d2, Rhino.Display.PointStyle.ControlPoint, 2, System.Drawing.Color.Red);
+                    for (int i = 0; i < e.nIntPoint; i++)
+                    {
+                        var d = e.getIntPoint(i);
+                        var d2 = new Rhino.Geometry.Point3d(d[0], d[1], d[2]);
+                        xyP.Add(d2);
+                        args.Display.DrawPoint(d2, Rhino.Display.PointStyle.ControlPoint, 2, System.Drawing.Color.Red);
+                    }
+                    if (!boundary)
+                    {
+                        for (int i = 0; i < e.nBIntPoint; i++)
+                        {
+                            var d = e.getBIntPoint(i);
+                            var d2 = new Rhino.Geometry.Point3d(d[0], d[1], d[2]);
+                            args.Display.DrawPoint(d2, Rhino.Display.PointStyle.X, 2, System.Drawing.Color.Red);
+                        }
+                    }
                 }
-                if (!boundary)
-                {
+            }
 
-                    for (int i = 0; i < e.nBIntPoint; i++)
-                    {
-                        var d = e.getBIntPoint(i);
-                        var d2 = new Rhino.Geometry.Point3d(d[0], d[1], d[2]);
-                        args.Display.DrawPoint(d2, Rhino.Display.PointStyle.X, 2, System.Drawing.Color.Red);
-                    }
-                }                
-            }
-            if (boundary)
+/*            for (int s = (nU - 2) * (nV - 2) - 1; s >= 0; s--)
             {
-                foreach (var e in myMasonry.topEdge)
+                Nurbs2x(outputNurbs[s], x);
+                myMasonry.setupNodesFromList(x);
+                myMasonry.computeGlobalCoord();
+                foreach (var e in myMasonry.elemList)
                 {
                     for (int i = 0; i < e.nIntPoint; i++)
                     {
                         var d = e.getIntPoint(i);
                         var d2 = new Rhino.Geometry.Point3d(d[0], d[1], d[2]);
                         outputP.Add(d2);
-                        args.Display.DrawPoint(d2, Rhino.Display.PointStyle.X, 2, System.Drawing.Color.Green);
+                        args.Display.DrawPoint(d2, Rhino.Display.PointStyle.ControlPoint, 2, System.Drawing.Color.Red);
                     }
                 }
-            }
-            Nurbs2x(outputNurbs, x);
-            myMasonry.setupNodesFromList(x);
-            myMasonry.computeGlobalCoord();
-            foreach (var e in myMasonry.elemList)
-            {
-                for (int i = 0; i < e.nIntPoint; i++)
+                if (boundary)
                 {
-                    var d = e.getIntPoint(i);
-                    var d2 = new Rhino.Geometry.Point3d(d[0], d[1], d[2]);
-                    outputP.Add(d2);
-                    args.Display.DrawPoint(d2, Rhino.Display.PointStyle.ControlPoint, 2, System.Drawing.Color.Red);
-                }
-            }
-            if (boundary)
-            {
-                foreach (var e in myMasonry.edgeList)
-                {
-                    for (int i = 0; i < e.nIntPoint; i++)
+                    foreach (var e in myMasonry.edgeList)
                     {
-                        var d = e.getIntPoint(i);
-                        var d2 = new Rhino.Geometry.Point3d(d[0], d[1], d[2]);
-                        outputP.Add(d2);
-                        args.Display.DrawPoint(d2, Rhino.Display.PointStyle.X, 2, System.Drawing.Color.Green);
+                        for (int i = 0; i < e.nIntPoint; i++)
+                        {
+                            var d = e.getIntPoint(i);
+                            var d2 = new Rhino.Geometry.Point3d(d[0], d[1], d[2]);
+                            outputP.Add(d2);
+                            args.Display.DrawPoint(d2, Rhino.Display.PointStyle.X, 2, System.Drawing.Color.Green);
+                        }
                     }
                 }
-            }
-            args.Display.DrawPoint(outputNurbs.Points.GetControlPoint(0, 0).Location, Rhino.Display.PointStyle.X, 2, System.Drawing.Color.Red);
-            args.Display.DrawPoint(outputNurbs.Points.GetControlPoint(nU-1, 0).Location, Rhino.Display.PointStyle.X, 2, System.Drawing.Color.Red);
-            args.Display.DrawPoint(outputNurbs.Points.GetControlPoint(0, nV-1).Location, Rhino.Display.PointStyle.X, 2, System.Drawing.Color.Red);
-            args.Display.DrawPoint(outputNurbs.Points.GetControlPoint(nU-1, nV-1).Location, Rhino.Display.PointStyle.X, 2, System.Drawing.Color.Red);
-            double S3 = 50;
+                args.Display.DrawPoint(outputNurbs[s].Points.GetControlPoint(0, 0).Location, Rhino.Display.PointStyle.X, 2, System.Drawing.Color.Red);
+                args.Display.DrawPoint(outputNurbs[s].Points.GetControlPoint(nU - 1, 0).Location, Rhino.Display.PointStyle.X, 2, System.Drawing.Color.Red);
+                args.Display.DrawPoint(outputNurbs[s].Points.GetControlPoint(0, nV - 1).Location, Rhino.Display.PointStyle.X, 2, System.Drawing.Color.Red);
+                args.Display.DrawPoint(outputNurbs[s].Points.GetControlPoint(nU - 1, nV - 1).Location, Rhino.Display.PointStyle.X, 2, System.Drawing.Color.Red);
+            }*/
+            /*double S3 = 50;
             if (Force != null)
             {
                 for (int i = 0; i < nU * nV; i++)
@@ -1070,7 +1151,7 @@ namespace mikity.ghComponents
                     if ((Fx * Fx + Fy * Fy + Fz * Fz) !=0)
                         args.Display.DrawArrow(new Line(x[i, 0], x[i, 1], x[i, 2], x[i, 0] + Fx, x[i, 1] + Fy, x[i, 2] + Fz), System.Drawing.Color.Orange);
                 }
-            }
+            }*/
             base.DrawViewportWires(args);
         }
         bool boundary = false;
@@ -1086,33 +1167,6 @@ namespace mikity.ghComponents
             }
             __update = true;
         }
-        void deleteFixedPoints()
-        {
-            if (fixedPointGuids != null)
-            {
-                foreach (Guid g in fixedPointGuids)
-                {
-                    Rhino.RhinoDoc.ActiveDoc.Objects.Delete(g, true);
-                }
-            }
-            fixedPointGuids = null;
-
-        }
-        void createAiryPoints(Rhino.Geometry.NurbsSurface S)
-        {
-            if (fixedPointGuids != null)
-            {
-                deleteFixedPoints();
-            }
-            fixedPointGuids = new List<Guid>();
-            for (int i = 0; i < nV; i++)
-            {
-                for (int j = 0; j < nU; j++)
-                {
-                    fixedPointGuids.Add(Rhino.RhinoDoc.ActiveDoc.Objects.AddPoint(S.Points.GetControlPoint(j,i).Location));
-                }
-            }
-        }
         void createAiryInitialSurface(Rhino.Geometry.NurbsSurface S)
         {
             //find the center point
@@ -1122,7 +1176,7 @@ namespace mikity.ghComponents
                 {
                     var P = S.Points.GetControlPoint(j, i);
                     double Z = (i - ((nV-1) / 2d)) * (i - ((nV-1) / 2d)) + (j - ((nU-1) / 2d)) * (j - ((nU-1) / 2d));
-                    airyNurbs.Points.SetControlPoint(j, i, new Rhino.Geometry.ControlPoint(P.Location.X, P.Location.Y, -Z));
+                    S.Points.SetControlPoint(j, i, new Rhino.Geometry.ControlPoint(P.Location.X, P.Location.Y, -Z));
                 }
             }
         }
@@ -1156,6 +1210,20 @@ namespace mikity.ghComponents
             alternativeMesh = new Rhino.Geometry.Mesh();
             nU = S.Points.CountU;
             nV = S.Points.CountV;
+            airyNurbs = new NurbsSurface[(nU - 2) * (nV - 2)];
+            outputNurbs = new NurbsSurface[(nU - 2) * (nV - 2)];
+            XZ = new Transform[(nU - 2) * (nV - 2)];
+            XZ2 = new Transform[(nU - 2) * (nV - 2)];
+
+            int count = 0;
+            for (int s = 1; s < nU - 1; s++)
+            {
+                for (int t = 1; t < nV - 1; t++, count++)
+                {
+                    XZ[count] = Transform.Translation(250 * s, 250 * t, 0);
+                    XZ2[count] = Transform.Translation(250 * s, 250 * t, 400);
+                }
+            }
 
             for (int j = 0; j < nV; j++)
             {
@@ -1193,36 +1261,31 @@ namespace mikity.ghComponents
             boundaryIndex.Add(nU * nV - 1-nU+1);
             boundaryIndex.Add(nU * nV - 1);
             */
-            airyNurbs = S.Duplicate() as Rhino.Geometry.NurbsSurface;
-            outputNurbs = S.Duplicate() as Rhino.Geometry.NurbsSurface;
-            xyNurbs = S.Duplicate() as Rhino.Geometry.NurbsSurface;
-
-            airyNurbs.Transform(X);
-            outputNurbs.Transform(X);
-            xyNurbs.Transform(X);
-
-            for (int i = 0; i < nV; i++)
+            for (int s = 0;s<(nU-2)*(nV-2);s++)
             {
-                for (int j = 0; j < nU; j++)
-                {
-                    var P = xyNurbs.Points.GetControlPoint(j, i);
-                    airyNurbs.Points.SetControlPoint(j, i, new Rhino.Geometry.ControlPoint(P.Location.X, P.Location.Y, 0));
-                    xyNurbs.Points.SetControlPoint(j, i, new Rhino.Geometry.ControlPoint(P.Location.X, P.Location.Y, 0));
-                }
+                airyNurbs[s]=S.Duplicate() as Rhino.Geometry.NurbsSurface;
+                outputNurbs[s]=S.Duplicate() as Rhino.Geometry.NurbsSurface;
             }
-            createAiryInitialSurface(airyNurbs);
-            createAiryPoints(airyNurbs);
+            xyNurbs = S.Duplicate() as Rhino.Geometry.NurbsSurface;
+            foreach (var s in airyNurbs)
+            {
+                s.Transform(X);
+                createAiryInitialSurface(s);
+            }
+            foreach (var s in outputNurbs)
+            {
+                s.Transform(X);
+            }
+            xyNurbs.Transform(X);
             createNurbsElements(inputNurbs);
 
             x = new double[nU * nV , 3];
-            Nurbs2x(airyNurbs,x);
-            myMasonry.setupNodesFromList(x);
-            myMasonry.computeAiryFunction();
-            myMasonry.computeEigenVectors();
             Nurbs2x(xyNurbs, x);
-            myMasonry.setupNodesFromList(x);
-            myMasonry.computeGlobalCoord();
-
+            foreach (var v in myMasonry)
+            {
+                v.setupNodesFromList(x);
+                v.computeGlobalCoord();
+            }
             return true;
         }
         void createNurbsElements(Rhino.Geometry.NurbsSurface S)
@@ -1263,123 +1326,130 @@ namespace mikity.ghComponents
             {
                 vKnot[i + nV + 1] = nV - vDdim;
             }
-            myMasonry.Clear();
-            for (int j = 1; j < nV - vDdim + 1; j++)
+            myMasonry = new Minilla3D.Objects.masonry[(nU - 2) * (nV - 2)];
+            for (int i = 0; i < (nU - 2) * (nV - 2); i++)
             {
-                for (int i = 1; i < nU - uDdim + 1; i++)
+                myMasonry[i] = new Minilla3D.Objects.masonry();
+            }
+            foreach(var v in myMasonry)
+            {
+                for (int j = 1; j < nV - vDdim + 1; j++)
                 {
-                    int[] index = new int[uDim * vDim];
-                    for (int k = 0; k < vDim; k++)
+                    for (int i = 1; i < nU - uDdim + 1; i++)
                     {
-                        for (int l = 0; l < uDim; l++)
+                        int[] index = new int[uDim * vDim];
+                        for (int k = 0; k < vDim; k++)
                         {
-                            index[k * uDim + l] = (j - 1 + k) * nU + i - 1 + l;
-                        }
-                    }
-                    //judge if on the border
-                    Minilla3D.Elements.nurbsElement.border _border=Minilla3D.Elements.nurbsElement.border.None;
-                    if (j == 1)
-                    {
-                        _border = _border | Minilla3D.Elements.nurbsElement.border.Top;
-                        {
-                            int[] index2 = new int[uDim];
                             for (int l = 0; l < uDim; l++)
                             {
-                                index2[l] = (j - 1) * nU + i - 1 + l;
+                                index[k * uDim + l] = (j - 1 + k) * nU + i - 1 + l;
                             }
-                            var c = new Minilla3D.Elements.nurbsCurve(uDim, index2, i, uKnot);
-                            myMasonry.edgeList.Add(c);
-                            myMasonry.topEdge.Add(c);
                         }
-                    }
-                    if (i == 1)
-                    {
-                        _border = _border | Minilla3D.Elements.nurbsElement.border.Left;
+                        //judge if on the border
+                        Minilla3D.Elements.nurbsElement.border _border = Minilla3D.Elements.nurbsElement.border.None;
+                        if (j == 1)
                         {
-                            int[] index2 = new int[vDim];
-                            for (int k = 0; k < vDim; k++)
+                            _border = _border | Minilla3D.Elements.nurbsElement.border.Top;
                             {
-                                index2[k] = (j - 1 + k) * nU + i - 1;
+                                int[] index2 = new int[uDim];
+                                for (int l = 0; l < uDim; l++)
+                                {
+                                    index2[l] = (j - 1) * nU + i - 1 + l;
+                                }
+                                var c = new Minilla3D.Elements.nurbsCurve(uDim, index2, i, uKnot);
+                                v.edgeList.Add(c);
+                                v.topEdge.Add(c);
                             }
-                            var c = new Minilla3D.Elements.nurbsCurve(vDim, index2, j, vKnot);
-                            myMasonry.edgeList.Add(c);
-                            myMasonry.leftEdge.Add(c);
                         }
-                    }
-                    if (j == nV - vDdim)
-                    {
-                        _border = _border | Minilla3D.Elements.nurbsElement.border.Bottom;
+                        if (i == 1)
                         {
-                            int[] index2 = new int[uDim];
-                            for (int l = 0; l < uDim; l++)
+                            _border = _border | Minilla3D.Elements.nurbsElement.border.Left;
                             {
-                                index2[l] = (j - 1 + (vDim - 1)) * nU + i - 1 + l;
+                                int[] index2 = new int[vDim];
+                                for (int k = 0; k < vDim; k++)
+                                {
+                                    index2[k] = (j - 1 + k) * nU + i - 1;
+                                }
+                                var c = new Minilla3D.Elements.nurbsCurve(vDim, index2, j, vKnot);
+                                v.edgeList.Add(c);
+                                v.leftEdge.Add(c);
                             }
-                            var c = new Minilla3D.Elements.nurbsCurve(uDim, index2, i, uKnot);
-                            myMasonry.edgeList.Add(c);
-                            myMasonry.bottomEdge.Add(c);
                         }
-                    }
-                    if (i == nU - uDdim)
-                    {
-                        _border = _border | Minilla3D.Elements.nurbsElement.border.Right;
+                        if (j == nV - vDdim)
                         {
-                            int[] index2 = new int[vDim];
-                            for (int k = 0; k < vDim; k++)
+                            _border = _border | Minilla3D.Elements.nurbsElement.border.Bottom;
                             {
-                                index2[k] = (j - 1 + k) * nU + i - 1 + uDim - 1;
+                                int[] index2 = new int[uDim];
+                                for (int l = 0; l < uDim; l++)
+                                {
+                                    index2[l] = (j - 1 + (vDim - 1)) * nU + i - 1 + l;
+                                }
+                                var c = new Minilla3D.Elements.nurbsCurve(uDim, index2, i, uKnot);
+                                v.edgeList.Add(c);
+                                v.bottomEdge.Add(c);
+                            }
+                        }
+                        if (i == nU - uDdim)
+                        {
+                            _border = _border | Minilla3D.Elements.nurbsElement.border.Right;
+                            {
+                                int[] index2 = new int[vDim];
+                                for (int k = 0; k < vDim; k++)
+                                {
+                                    index2[k] = (j - 1 + k) * nU + i - 1 + uDim - 1;
 
+                                }
+                                var c = new Minilla3D.Elements.nurbsCurve(vDim, index2, j, vKnot);
+                                v.edgeList.Add(c);
+                                v.rightEdge.Add(c);
                             }
-                            var c = new Minilla3D.Elements.nurbsCurve(vDim, index2, j, vKnot);
-                            myMasonry.edgeList.Add(c);
-                            myMasonry.rightEdge.Add(c);
                         }
-                    }
-                    myMasonry.elemList.Add(new Minilla3D.Elements.nurbsElement(uDim, vDim, index, i, j, uKnot, vKnot, _border));
-                    switch (_border)
-                    {
-                        case nurbsElement.border.Left|nurbsElement.border.Top | nurbsElement.border.Right:
-                            myMasonry.elemList.Last().stitch( myMasonry.leftEdge.Last(),myMasonry.topEdge.Last(), myMasonry.rightEdge.Last());
-                            break;
-                        case nurbsElement.border.Left | nurbsElement.border.Bottom | nurbsElement.border.Right:
-                            myMasonry.elemList.Last().stitch(myMasonry.leftEdge.Last(), myMasonry.bottomEdge.Last(), myMasonry.rightEdge.Last());
-                            break;
-                        case nurbsElement.border.Left | nurbsElement.border.Top | nurbsElement.border.Bottom:
-                            myMasonry.elemList.Last().stitch(myMasonry.leftEdge.Last(), myMasonry.topEdge.Last(), myMasonry.bottomEdge.Last());
-                            break;
-                        case nurbsElement.border.Right | nurbsElement.border.Top | nurbsElement.border.Bottom:
-                            myMasonry.elemList.Last().stitch(myMasonry.rightEdge.Last(), myMasonry.topEdge.Last(), myMasonry.bottomEdge.Last());
-                            break;
-                        case nurbsElement.border.Left | nurbsElement.border.Right:
-                            myMasonry.elemList.Last().stitch(myMasonry.leftEdge.Last(), myMasonry.rightEdge.Last());
-                            break;
-                        case nurbsElement.border.Top | nurbsElement.border.Bottom:
-                            myMasonry.elemList.Last().stitch(myMasonry.topEdge.Last(), myMasonry.bottomEdge.Last());
-                            break;
-                        case nurbsElement.border.Left | nurbsElement.border.Top:
-                            myMasonry.elemList.Last().stitch(myMasonry.leftEdge.Last(), myMasonry.topEdge.Last());
-                            break;
-                        case nurbsElement.border.Left | nurbsElement.border.Bottom:
-                            myMasonry.elemList.Last().stitch(myMasonry.leftEdge.Last(), myMasonry.bottomEdge.Last());
-                            break;
-                        case nurbsElement.border.Right | nurbsElement.border.Top:
-                            myMasonry.elemList.Last().stitch(myMasonry.rightEdge.Last(), myMasonry.topEdge.Last());
-                            break;
-                        case nurbsElement.border.Right | nurbsElement.border.Bottom:
-                            myMasonry.elemList.Last().stitch(myMasonry.rightEdge.Last(), myMasonry.bottomEdge.Last());
-                            break;
-                        case nurbsElement.border.Left:
-                            myMasonry.elemList.Last().stitch(myMasonry.leftEdge.Last());
-                            break;
-                        case nurbsElement.border.Right:
-                            myMasonry.elemList.Last().stitch(myMasonry.rightEdge.Last());
-                            break;
-                        case nurbsElement.border.Top:
-                            myMasonry.elemList.Last().stitch(myMasonry.topEdge.Last());
-                            break;
-                        case nurbsElement.border.Bottom:
-                            myMasonry.elemList.Last().stitch(myMasonry.bottomEdge.Last());
-                            break;
+                        v.elemList.Add(new Minilla3D.Elements.nurbsElement(uDim, vDim, index, i, j, uKnot, vKnot, _border));
+                        switch (_border)
+                        {
+                            case nurbsElement.border.Left | nurbsElement.border.Top | nurbsElement.border.Right:
+                                v.elemList.Last().stitch(v.leftEdge.Last(), v.topEdge.Last(), v.rightEdge.Last());
+                                break;
+                            case nurbsElement.border.Left | nurbsElement.border.Bottom | nurbsElement.border.Right:
+                                v.elemList.Last().stitch(v.leftEdge.Last(), v.bottomEdge.Last(), v.rightEdge.Last());
+                                break;
+                            case nurbsElement.border.Left | nurbsElement.border.Top | nurbsElement.border.Bottom:
+                                v.elemList.Last().stitch(v.leftEdge.Last(), v.topEdge.Last(), v.bottomEdge.Last());
+                                break;
+                            case nurbsElement.border.Right | nurbsElement.border.Top | nurbsElement.border.Bottom:
+                                v.elemList.Last().stitch(v.rightEdge.Last(), v.topEdge.Last(), v.bottomEdge.Last());
+                                break;
+                            case nurbsElement.border.Left | nurbsElement.border.Right:
+                                v.elemList.Last().stitch(v.leftEdge.Last(), v.rightEdge.Last());
+                                break;
+                            case nurbsElement.border.Top | nurbsElement.border.Bottom:
+                                v.elemList.Last().stitch(v.topEdge.Last(), v.bottomEdge.Last());
+                                break;
+                            case nurbsElement.border.Left | nurbsElement.border.Top:
+                                v.elemList.Last().stitch(v.leftEdge.Last(), v.topEdge.Last());
+                                break;
+                            case nurbsElement.border.Left | nurbsElement.border.Bottom:
+                                v.elemList.Last().stitch(v.leftEdge.Last(), v.bottomEdge.Last());
+                                break;
+                            case nurbsElement.border.Right | nurbsElement.border.Top:
+                                v.elemList.Last().stitch(v.rightEdge.Last(), v.topEdge.Last());
+                                break;
+                            case nurbsElement.border.Right | nurbsElement.border.Bottom:
+                                v.elemList.Last().stitch(v.rightEdge.Last(), v.bottomEdge.Last());
+                                break;
+                            case nurbsElement.border.Left:
+                                v.elemList.Last().stitch(v.leftEdge.Last());
+                                break;
+                            case nurbsElement.border.Right:
+                                v.elemList.Last().stitch(v.rightEdge.Last());
+                                break;
+                            case nurbsElement.border.Top:
+                                v.elemList.Last().stitch(v.topEdge.Last());
+                                break;
+                            case nurbsElement.border.Bottom:
+                                v.elemList.Last().stitch(v.bottomEdge.Last());
+                                break;
+                        }
                     }
                 }
             }
