@@ -7,6 +7,8 @@ using Rhino.Geometry;
 using System.IO;
 using System.Reflection;
 using Gurobi;
+using Microsoft.SolverFoundation.Common;
+using Microsoft.SolverFoundation.Solvers;
 using Minilla3D.Elements;
 namespace mikity.ghComponents
 {
@@ -935,7 +937,7 @@ namespace mikity.ghComponents
             double[][] vec = new double[2][] { new double[3], new double[3] };
             double[] val = new double[2];
             double[] node=null;
-            double S = 200;
+            double S = 500;
             Nurbs2x(xyNurbs, x);
             myMasonry.setupNodesFromList(x);
             myMasonry.computeGlobalCoord();
@@ -950,7 +952,7 @@ namespace mikity.ghComponents
             
             foreach (var e in myMasonry.elemList)
             {
-                for (int i = 0; i < e.nIntPoint; i++)
+/*                for (int i = 0; i < e.nIntPoint; i++)
                 {
                     e.getEigenVectors(vec, val, i);
                     node = e.getIntPoint(i);
@@ -968,8 +970,8 @@ namespace mikity.ghComponents
                     args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] + vec[1][0] * S2, node[1] + vec[1][1] * S2, node[2] + vec[1][2] * S2), color, 1);
                     args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] - vec[1][0] * S2, node[1] - vec[1][1] * S2, node[2] - vec[1][2] * S2), color, 1);
 
-                }
-                for (int i = 0; i < e.nBIntPoint; i++)
+                }*/
+/*                for (int i = 0; i < e.nBIntPoint; i++)
                 {
                     e.getBEigenVectors(vec, val, i);
                     node = e.getBIntPoint(i);
@@ -987,7 +989,7 @@ namespace mikity.ghComponents
                     args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] + vec[1][0] * S2, node[1] + vec[1][1] * S2, node[2] + vec[1][2] * S2), color, 1);
                     args.Display.DrawLine(new Rhino.Geometry.Point3d(node[0], node[1], node[2]), new Rhino.Geometry.Point3d(node[0] - vec[1][0] * S2, node[1] - vec[1][1] * S2, node[2] - vec[1][2] * S2), color, 1);
 
-                }
+                }*/ 
             }
             List<Rhino.Geometry.Point3d> xyP = new List<Point3d>();
             List<Rhino.Geometry.Point3d> outputP = new List<Point3d>();
